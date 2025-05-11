@@ -28,11 +28,18 @@ func NewHandler(service cartService) *Handler {
 		service: service}
 }
 
+var (
+	AddToCartRoute         = "/user/{userId}/cart/{skuId}"
+	DeleteFromCartRoute    = "/user/{userId}/cart/{skuId}"
+	DeleteAllFromCartRoute = "/user/{userId}/cart"
+	GetAllFromCartRoute    = "/user/{userId}/cart"
+)
+
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/user/{userId}/cart/{skuId}", h.AddToCartHandler).Methods("POST")
-	r.HandleFunc("/user/{userId}/cart/{skuId}", h.DeleteFromCartHandler).Methods("DELETE")
-	r.HandleFunc("/user/{userId}/cart", h.DeleteAllFromCartHandler).Methods("DELETE")
-	r.HandleFunc("/user/{userId}/cart", h.GetAllFromCartHandler).Methods("GET")
+	r.HandleFunc(AddToCartRoute, h.AddToCartHandler).Methods("POST")
+	r.HandleFunc(DeleteFromCartRoute, h.DeleteFromCartHandler).Methods("DELETE")
+	r.HandleFunc(DeleteAllFromCartRoute, h.DeleteAllFromCartHandler).Methods("DELETE")
+	r.HandleFunc(GetAllFromCartRoute, h.GetAllFromCartHandler).Methods("GET")
 }
 
 func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +114,10 @@ func (h *Handler) GetAllFromCartHandler(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		return
+	}
 }
 
 func (h *Handler) AddToCartHandler(w http.ResponseWriter, r *http.Request) {

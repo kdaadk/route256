@@ -1,0 +1,17 @@
+run:
+  skip-generated: true
+  skip-files:
+    - ".*_mock.go"
+    - ".*_test.go"
+
+linters:
+  enable:
+    - errcheck
+    - gocyclo
+    - govet
+
+linters-settings:
+  gocyclo:
+    min-complexity: 7
+
+
