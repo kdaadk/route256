@@ -1,22 +1,15 @@
 run:
-	go run ./cmd & \
-	go run ./mock/product
+	go run ./cmd
 
-.PHONY: test coverage
+lint:
+	gofumpt -l -w .
+	find . -name '*.go' -exec gci write --skip-generated -s standard -s default {} \;
+	find . -name '*.go' | xargs goimports -w
+	golangci-lint run ./...
 
-test:
-	go test ./...
-
-benchmark:
-	go test -bench=. -benchmem ./...
-
-coverage:
-	go test -coverprofile=coverage.tmp.out ./...
-	grep -v "_mock.go" coverage.tmp.out > coverage.out
-	go tool cover -func=coverage.out
-
-linter:
-	golangci-lint run --config ./golangci.yml
+test: lint
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
 
 #### Protobuf
 vendor-proto/google/protobuf:
@@ -39,13 +32,15 @@ vendor-proto/validate:
 	mv vendor-proto/tmp/validate vendor-proto
 	rm -rf vendor-proto/tmp
 
-LOMS_PROTO_SOURCE := $(abspath ../../loms/proto)
-LOMS_PROTO_FILES := $(wildcard $(LOMS_PROTO_SOURCE)/*.proto)
-
-vendor-proto/route256/loms:
-	mkdir -p vendor-proto/route256
-	cp -r $(abspath ../../homework/loms/proto) vendor-proto/route256/loms
-
+vendor-proto/google/api:
+	git clone -b master --single-branch -n --depth=1 --filter=tree:0 \
+		https://github.com/googleapis/googleapis vendor-proto/googleapis-tmp && \
+	cd vendor-proto/googleapis-tmp && \
+	git sparse-checkout set --no-cone google/api && \
+	git checkout
+	mkdir -p vendor-proto/google
+	mv vendor-proto/googleapis-tmp/google/api vendor-proto/google
+	rm -rf vendor-proto/googleapis-tmp
 
 LOCAL_BIN:=$(CURDIR)/bin
 PROTOC = PATH="$(PATH):$(LOCAL_BIN)" protoc
@@ -60,6 +55,7 @@ GO_VALIDATE_PLUGIN   := github.com/envoyproxy/protoc-gen-validate@v1.0.4
 	GOBIN="$(LOCAL_BIN)" go install $(GO_PLUGIN)
 	GOBIN="$(LOCAL_BIN)" go install $(GO_GRPC_PLUGIN)
 	GOBIN="$(LOCAL_BIN)" go install $(GO_VALIDATE_PLUGIN)
+	GOBIN="$(LOCAL_BIN)" go install $(GO_VALIDATE_PLUGIN)
 	@echo "Plugins installed to $(LOCAL_BIN)"
 	@ls -la "$(LOCAL_BIN)"
 
@@ -68,7 +64,7 @@ GO_VALIDATE_PLUGIN   := github.com/envoyproxy/protoc-gen-validate@v1.0.4
 	rm -rf vendor-proto
 
 .PHONY: .vendor-proto
-.vendor-proto: .vendor-rm vendor-proto/google/protobuf vendor-proto/validate vendor-proto/route256/loms
+.vendor-proto: .vendor-rm vendor-proto/google/protobuf vendor-proto/validate vendor-proto/google/api
 
 LOMS_PROTO_PATH := proto
 GO_OUT_DIR := $(LOMS_PROTO_PATH)
@@ -82,7 +78,7 @@ PROTO_FILES := $(wildcard $(LOMS_PROTO_PATH)/*.proto)
 		$(PROTOC) \
 			-I "$(LOMS_PROTO_PATH)" \
 			-I vendor-proto \
-			-I vendor-proto/route256/loms \
+			-I vendor-proto/google/api \
 			--plugin=protoc-gen-go="$(LOCAL_BIN)/protoc-gen-go" \
 			--go_out=$(GO_OUT_DIR) \
 			--go_opt=paths=source_relative \
@@ -96,5 +92,3 @@ PROTO_FILES := $(wildcard $(LOMS_PROTO_PATH)/*.proto)
 	go mod tidy
 
 .all: .protoc-generate
-
-

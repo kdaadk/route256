@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package loms;
+
+option go_package = "route256/loms/proto";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "validate/validate.proto";
+
+service LomsService {
+    rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {
+        option (google.api.http) = {
+            post: "/v1/orders"
+            body: "*"
+        };
+    }
+    rpc GetOrderById(GetByIdRequest) returns (GetByIdResponse) {
+        option (google.api.http) = {
+            get: "/v1/orders"
+        };
+    }
+    rpc PayOrder(PayOrderRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/v1/order/pay"
+            body: "*"
+        };
+    }
+    rpc CancelOrder(CancelOrderRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/v1/order/cancel"
+            body: "*"
+        };
+    }
+    rpc GetStockInfo(GetStockInfoRequest) returns (GetStockInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/stock/info"
+            body: "*"
+        };
+    }
+}
+
+message CreateOrderRequest {
+    int64 user_id = 1 [(validate.rules).int64.gt = 0];  // user_id must be > 0
+    repeated OrderItem items = 2 [(validate.rules).repeated = {
+        min_items: 1,  // At least 1 item required
+        items: { message: { required: true } }  // Each item must be valid
+    }];
+}
+
+message OrderItem {
+    int32 sku = 1 [(validate.rules).int32.gt = 0];  // SKU must be > 0
+    int32 count = 2 [(validate.rules).int32.gt = 0]; // Count must be > 0
+}
+
+message GetByIdRequest {
+    int64 order_id = 1 [(validate.rules).int64.gt = 0];  // order_id must be > 0
+}
+
+message PayOrderRequest {
+    int64 order_id = 1 [(validate.rules).int64.gt = 0];  // order_id must be > 0
+}
+
+message CancelOrderRequest {
+    int64 order_id = 1 [(validate.rules).int64.gt = 0];  // order_id must be > 0
+}
+
+message GetStockInfoRequest {
+    repeated int64 sku_ids = 1 [(validate.rules).repeated = {
+        min_items: 1,  // At least 1 SKU required
+        items: { int64: { gt: 0 } }  // Each SKU must be > 0
+    }];
+}
+
+message CreateOrderResponse {
+    int64 order_id = 1;
+}
+
+message GetByIdResponse {
+    OrderStatus status = 1;
+    int64 user_id = 2;
+    repeated OrderItem items = 3;
+}
+
+enum OrderStatus {
+    UNKNOWN = 0;
+    NEW = 1;
+    AWAITING_PAYMENT = 2;
+    FAILED = 3;
+    PAID = 4;
+    CANCELLED = 5;
+}
+
+message GetStockInfoResponse {
+    repeated StockInfo stock_infos = 1;
+}
+
+message StockInfo {
+    int64 sku_id = 1;
+    uint32 count = 2;
+}

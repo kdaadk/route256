@@ -17,9 +17,9 @@ type Client struct {
 	client  *http.Client
 }
 
-func NewClient() (*Client, error) {
+func NewClient(baseUrl string) (*Client, error) {
 	return &Client{
-		baseURL: "http://localhost:8081",
+		baseURL: baseUrl,
 		client:  &http.Client{},
 	}, nil
 }

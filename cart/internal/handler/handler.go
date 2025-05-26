@@ -12,11 +12,14 @@ import (
 )
 
 type cartService interface {
-	AddItemToCart(userId int64, item *model.Item) error
+	AddItemToCart(userId, skuId int64, count uint32) error
 	DeleteFromCart(userId int64, skuId int64) error
-	DeleteAllFromCart(userId int64) error
 	GetItems(userId int64) (*model.UserData, error)
-	GetProduct(productId int64) (*model.Product, error)
+
+	PayOrder(orderId int64) error
+	CancelOrder(orderId int64) error
+
+	Checkout(userId int64) (int64, error)
 }
 
 type Handler struct {
@@ -29,17 +32,31 @@ func NewHandler(service cartService) *Handler {
 }
 
 var (
-	AddToCartRoute         = "/user/{userId}/cart/{skuId}"
-	DeleteFromCartRoute    = "/user/{userId}/cart/{skuId}"
-	DeleteAllFromCartRoute = "/user/{userId}/cart"
-	GetAllFromCartRoute    = "/user/{userId}/cart"
+	AddToCartRoute      = "/user/{userId}/cart/{skuId}"
+	DeleteFromCartRoute = "/user/{userId}/cart/{skuId}"
+	GetAllFromCartRoute = "/user/{userId}/cart"
+
+	PayOrderRoute    = "/order/pay/{orderId}"
+	CancelOrderRoute = "/order/cancel/{orderId}"
+
+	CheckoutRoute = "/cart/checkout"
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
+	// cart/item/add - добавляем в корзину и проверяем, что есть в наличии
 	r.HandleFunc(AddToCartRoute, h.AddToCartHandler).Methods("POST")
+	// cart/item/delete - можем удалять из корзины
 	r.HandleFunc(DeleteFromCartRoute, h.DeleteFromCartHandler).Methods("DELETE")
-	r.HandleFunc(DeleteAllFromCartRoute, h.DeleteAllFromCartHandler).Methods("DELETE")
+	// cart/list - можем получать список товаров корзины
 	r.HandleFunc(GetAllFromCartRoute, h.GetAllFromCartHandler).Methods("GET")
+
+	// order/pay - оплачиваем заказ
+	r.HandleFunc(PayOrderRoute, h.PayOrderHandler).Methods("POST")
+	// order/cancel - отмена заказа до оплаты
+	r.HandleFunc(CancelOrderRoute, h.CancelOrderHandler).Methods("POST")
+
+	// cart/checkout - приобретаем товары через Checkout
+	r.HandleFunc(CheckoutRoute, h.CheckoutHandler).Methods("POST")
 }
 
 func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) {
@@ -60,25 +77,6 @@ func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err = h.service.DeleteFromCart(userId, skuId); err != nil {
-		writeErr(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
-func (h *Handler) DeleteAllFromCartHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	rawUserId := vars["userId"]
-
-	userId, err := strconv.ParseInt(rawUserId, 10, 64)
-	if err != nil || userId <= 0 {
-		writeErr(w, err)
-		return
-	}
-
-	err = h.service.DeleteAllFromCart(userId)
-	if err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -146,26 +144,72 @@ func (h *Handler) AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prod, err := h.service.GetProduct(skuId)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-
-	item := model.Item{
-		SkuId: skuId,
-		Name:  prod.Name,
-		Count: req.Count,
-		Price: prod.Price * uint32(req.Count),
-	}
-
-	err = h.service.AddItemToCart(userId, &item)
+	err = h.service.AddItemToCart(userId, skuId, uint32(req.Count))
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) PayOrderHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	rawOrderId := vars["orderId"]
+
+	orderId, err := strconv.ParseInt(rawOrderId, 10, 64)
+	if err != nil || orderId <= 0 {
+		writeErr(w, err)
+		return
+	}
+
+	err = h.service.PayOrder(orderId)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) CancelOrderHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	rawOrderId := vars["orderId"]
+
+	orderId, err := strconv.ParseInt(rawOrderId, 10, 64)
+	if err != nil || orderId <= 0 {
+		writeErr(w, err)
+		return
+	}
+
+	err = h.service.CancelOrder(orderId)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) CheckoutHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	rawUserId := vars["user"]
+
+	userId, err := strconv.ParseInt(rawUserId, 10, 64)
+	if err != nil || userId <= 0 {
+		writeErr(w, err)
+		return
+	}
+
+	orderId, err := h.service.Checkout(userId)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(orderId)
 }
 
 func writeErr(w http.ResponseWriter, err error) {

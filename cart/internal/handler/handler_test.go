@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	proto "route256/cart/vendor-proto/route256/loms"
 	"testing"
 
 	"github.com/gojuno/minimock/v3"
@@ -16,12 +17,13 @@ import (
 	"route256/cart/internal/service/mocks"
 )
 
-func setupMocks(mc *minimock.Controller) (*mocks.CartRepoMock, *mocks.ProductClientMock, *Handler) {
+func setupMocks(mc *minimock.Controller) (*mocks.CartRepoMock, *mocks.ProductClientMock, *mocks.LomsClientMock, *Handler) {
 	repo := mocks.NewCartRepoMock(mc)
-	prod := mocks.NewProductClientMock(mc)
-	s := service.NewService(repo, prod)
+	productCli := mocks.NewProductClientMock(mc)
+	lomsCli := mocks.NewLomsClientMock(mc)
+	s := service.NewService(repo, productCli, lomsCli)
 	h := NewHandler(s)
-	return repo, prod, h
+	return repo, productCli, lomsCli, h
 }
 
 func newProduct(skuId int64) *model.Product {
@@ -71,11 +73,6 @@ func newAddItemRequest(userId, skuId int64, count uint16) *http.Request {
 func newGetCartRequest(userId int64) *http.Request {
 	url := fmt.Sprintf("/user/%d/cart", userId)
 	return httptest.NewRequest(http.MethodGet, url, nil)
-}
-
-func newDeleteAllRequest(userId int64) *http.Request {
-	url := fmt.Sprintf("/user/%d/cart", userId)
-	return httptest.NewRequest(http.MethodDelete, url, nil)
 }
 
 func newDeleteFromCartRequest(userId, skuId int64) *http.Request {
@@ -130,8 +127,11 @@ func TestAddToCartHandler_Success(t *testing.T) {
 	userData := newUserData([]*model.Item{item})
 
 	ctrl := minimock.NewController(t)
-	cartRepoMock, productCliMock, h := setupMocks(ctrl)
+	cartRepoMock, productCliMock, lomsCliMock, h := setupMocks(ctrl)
 	productCliMock.GetProductMock.Expect(skuId).Return(product, nil)
+	lomsCliMock.GetStockInfosMock.Expect([]int64{skuId}).Return(
+		&proto.GetStockInfoResponse{StockInfos: []*proto.StockInfo{{SkuId: skuId, Count: uint32(count)}}},
+		nil)
 	cartRepoMock.AddItemToCartMock.Expect(userId, item).Return(nil)
 	cartRepoMock.GetItemsMock.Expect(userId).Return(userData, nil)
 
@@ -159,8 +159,11 @@ func TestAddToCartHandler_SeveralSameAddProduct_ShouldSum(t *testing.T) {
 	userData := newUserData([]*model.Item{item1, item2})
 
 	ctrl := minimock.NewController(t)
-	cartRepoMock, productCliMock, h := setupMocks(ctrl)
+	cartRepoMock, productCliMock, lomsCliMock, h := setupMocks(ctrl)
 	productCliMock.GetProductMock.Expect(skuId).Return(product, nil)
+	lomsCliMock.GetStockInfosMock.Expect([]int64{skuId}).Return(
+		&proto.GetStockInfoResponse{StockInfos: []*proto.StockInfo{{SkuId: skuId, Count: uint32(count1 + count2)}}},
+		nil)
 	cartRepoMock.AddItemToCartMock.Set(func(uId int64, item *model.Item) error {
 		if uId != userId {
 			t.Errorf("unexpected userId: got %d, want %d", uId, userId)
@@ -204,7 +207,7 @@ func TestAddToCartHandler_SeveralDiffAddProduct_ShouldStored(t *testing.T) {
 	userData := newUserData([]*model.Item{item1, item2})
 
 	ctrl := minimock.NewController(t)
-	cartRepoMock, productCliMock, h := setupMocks(ctrl)
+	cartRepoMock, productCliMock, lomsCliMock, h := setupMocks(ctrl)
 	productCliMock.GetProductMock.Set(func(sku int64) (*model.Product, error) {
 		switch sku {
 		case skuId1:
@@ -214,6 +217,16 @@ func TestAddToCartHandler_SeveralDiffAddProduct_ShouldStored(t *testing.T) {
 		default:
 			t.Errorf("unexpected SKU ID: %d", sku)
 			return nil, fmt.Errorf("unknown product")
+		}
+	})
+	lomsCliMock.GetStockInfosMock.Set(func(skuIds []int64) (*proto.GetStockInfoResponse, error) {
+		switch skuIds[0] {
+		case skuId1:
+			return &proto.GetStockInfoResponse{StockInfos: []*proto.StockInfo{{SkuId: skuId1, Count: uint32(count)}}}, nil
+		case skuId2:
+			return &proto.GetStockInfoResponse{StockInfos: []*proto.StockInfo{{SkuId: skuId2, Count: uint32(count)}}}, nil
+		default:
+			return nil, fmt.Errorf("unknown stock")
 		}
 	})
 	cartRepoMock.AddItemToCartMock.Set(func(uId int64, item *model.Item) error {
@@ -261,7 +274,7 @@ func TestAddToCartHandler_InvalidInput_Failure(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := minimock.NewController(t)
-			_, _, h := setupMocks(ctrl)
+			_, _, _, h := setupMocks(ctrl)
 			router := newTestRouter(h)
 
 			w := httptest.NewRecorder()
@@ -281,7 +294,7 @@ func TestAddToCartHandler_UnknownProduct_Failure(t *testing.T) {
 	)
 
 	ctrl := minimock.NewController(t)
-	_, productCliMock, h := setupMocks(ctrl)
+	_, productCliMock, _, h := setupMocks(ctrl)
 	productCliMock.GetProductMock.Expect(skuId).Return(nil, model.ErrPreconditionFailed)
 
 	// act
@@ -291,37 +304,6 @@ func TestAddToCartHandler_UnknownProduct_Failure(t *testing.T) {
 
 	// assert
 	assertStatus(t, w, http.StatusPreconditionFailed)
-}
-
-func TestDeleteAllHandler_Success(t *testing.T) {
-	// arrange
-	const (
-		userId int64  = 31337
-		skuId  int64  = 1076963
-		count  uint16 = 1
-	)
-	product := newProduct(skuId)
-	item := newItem(product, count)
-	userData := newUserData([]*model.Item{})
-
-	ctrl := minimock.NewController(t)
-	cartRepoMock, productCliMock, h := setupMocks(ctrl)
-	productCliMock.GetProductMock.Expect(skuId).Return(product, nil)
-	cartRepoMock.AddItemToCartMock.Expect(userId, item).Return(nil)
-	cartRepoMock.DeleteAllFromCartMock.Expect(userId).Return(nil)
-	cartRepoMock.GetItemsMock.Expect(userId).Return(userData, nil)
-
-	router := newTestRouter(h)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, newAddItemRequest(userId, skuId, count))
-
-	// act
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, newDeleteAllRequest(userId))
-
-	// assert
-	assertStatus(t, w, http.StatusOK)
-	assertCart(t, router, userId, userData)
 }
 
 func TestDeleteItemHandler_Success(t *testing.T) {
@@ -336,8 +318,11 @@ func TestDeleteItemHandler_Success(t *testing.T) {
 	userData := newUserData([]*model.Item{})
 
 	ctrl := minimock.NewController(t)
-	cartRepoMock, productCliMock, h := setupMocks(ctrl)
+	cartRepoMock, productCliMock, lomsCliMock, h := setupMocks(ctrl)
 	productCliMock.GetProductMock.Expect(skuId).Return(product, nil)
+	lomsCliMock.GetStockInfosMock.Expect([]int64{skuId}).Return(
+		&proto.GetStockInfoResponse{StockInfos: []*proto.StockInfo{{SkuId: skuId, Count: uint32(count)}}},
+		nil)
 	cartRepoMock.AddItemToCartMock.Expect(userId, item).Return(nil)
 	cartRepoMock.DeleteFromCartMock.Expect(userId, skuId).Return(nil)
 	cartRepoMock.GetItemsMock.Expect(userId).Return(userData, nil)
@@ -359,7 +344,7 @@ func TestGetCartHandler_InvalidUser_Failure(t *testing.T) {
 	// arrange
 	const userId int64 = 0
 	ctrl := minimock.NewController(t)
-	_, _, h := setupMocks(ctrl)
+	_, _, _, h := setupMocks(ctrl)
 
 	// act
 	router := newTestRouter(h)
