@@ -1,48 +1,70 @@
 package service
 
 import (
-	"errors"
+	"context"
+	"github.com/jackc/pgx/v5"
 	"route256/loms/internal/model"
 	proto "route256/loms/proto"
 )
 
 type ordersRepo interface {
-	CreateOrder(req *proto.CreateOrderRequest) (int64, error)
-	SetState(orderId int64, status model.OrderStatus) error
+	CreateOrder(tx pgx.Tx, userId int64, items []*model.Item) (int64, error)
+	SetState(tx pgx.Tx, orderId int64, status model.OrderStatus) error
 	GetById(orderId int64) (*model.Order, error)
 }
 
 type stocksRepo interface {
-	Reserve(skuId int64, count uint32) (model.OrderStatus, error)
-	CancelReserve(skuId int64, count uint32) error
-	RemoveReserve(skuId int64, count uint32) error
-	GetStockInfos(skuIds []int64) (*[]model.Stock, error)
+	Reserve(tx pgx.Tx, items []*model.Item) error
+	CancelReserve(tx pgx.Tx, skuId int64, count uint32) error
+	RemoveReserve(tx pgx.Tx, skuId int64, count uint32) error
+	GetStockInfos(skuIds []int64) ([]*model.Stock, error)
+}
+
+type TxManager interface {
+	Tx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error, opts *pgx.TxOptions) error
 }
 
 type Service struct {
 	ordersRepo ordersRepo
 	stocksRepo stocksRepo
+	txManager  TxManager
 }
 
-func NewService(ordersRepo ordersRepo, stocksRepo stocksRepo) *Service {
+func NewService(ordersRepo ordersRepo, stocksRepo stocksRepo, txManager TxManager) *Service {
 	return &Service{
 		ordersRepo: ordersRepo,
 		stocksRepo: stocksRepo,
+		txManager:  txManager,
 	}
 }
 
 func (s Service) CreateOrder(req *proto.CreateOrderRequest) (int64, error) {
-	orderId, err := s.ordersRepo.CreateOrder(req)
-	if err != nil {
-		return 0, err
+	items := make([]*model.Item, 0)
+	for _, item := range req.Items {
+		items = append(items, &model.Item{SkuId: int64(item.Sku), Count: uint32(item.Count)})
 	}
 
-	status, err := s.reserve(req)
-	if err != nil && status == model.OrderStatus_Failed {
-		return 0, err
-	}
+	var orderId int64
+	err := s.txManager.Tx(context.Background(), func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		orderId, err = s.ordersRepo.CreateOrder(tx, req.UserId, items)
+		if err != nil {
+			return err
+		}
 
-	err = s.ordersRepo.SetState(orderId, status)
+		err = s.stocksRepo.Reserve(tx, items)
+		if err != nil {
+			return err
+		}
+
+		err = s.ordersRepo.SetState(tx, orderId, model.OrderStatus_AwaitingPayment)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}, nil)
+
 	if err != nil {
 		return 0, err
 	}
@@ -54,47 +76,28 @@ func (s Service) GetById(orderId int64) (*model.Order, error) {
 	return s.ordersRepo.GetById(orderId)
 }
 
-func (s Service) reserve(req *proto.CreateOrderRequest) (model.OrderStatus, error) {
-	reserved := map[int64]uint32{}
-	failed := false
-
-	for _, item := range req.Items {
-		status, err := s.stocksRepo.Reserve(int64(item.Sku), uint32(item.Count))
-		if err != nil && status == model.OrderStatus_Failed {
-			failed = true
-		} else {
-			reserved[int64(item.Sku)] = uint32(item.Count)
-		}
-	}
-
-	if failed {
-		for skuId, count := range reserved {
-			err := s.stocksRepo.CancelReserve(skuId, count)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		return model.OrderStatus_Failed, errors.New("failed to reserve")
-	} else {
-		return model.OrderStatus_AwaitingPayment, nil
-	}
-}
-
 func (s Service) PayOrder(req *proto.PayOrderRequest) error {
-	order, err := s.ordersRepo.GetById(req.OrderId)
-	if err != nil {
-		return err
-	}
-
-	for _, item := range order.Items {
-		err = s.stocksRepo.RemoveReserve(item.SkuId, item.Count)
+	err := s.txManager.Tx(context.Background(), func(ctx context.Context, tx pgx.Tx) error {
+		order, err := s.ordersRepo.GetById(req.OrderId)
 		if err != nil {
 			return err
 		}
-	}
 
-	err = s.ordersRepo.SetState(order.OrderId, model.OrderStatus_Paid)
+		for _, item := range order.Items {
+			err = s.stocksRepo.RemoveReserve(tx, item.SkuId, item.Count)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = s.ordersRepo.SetState(tx, order.OrderId, model.OrderStatus_Paid)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}, nil)
+
 	if err != nil {
 		return err
 	}
@@ -103,19 +106,27 @@ func (s Service) PayOrder(req *proto.PayOrderRequest) error {
 }
 
 func (s Service) CancelOrder(req *proto.CancelOrderRequest) error {
-	order, err := s.ordersRepo.GetById(req.OrderId)
-	if err != nil {
-		return err
-	}
-
-	for _, item := range order.Items {
-		err = s.stocksRepo.CancelReserve(item.SkuId, item.Count)
+	err := s.txManager.Tx(context.Background(), func(ctx context.Context, tx pgx.Tx) error {
+		order, err := s.ordersRepo.GetById(req.OrderId)
 		if err != nil {
 			return err
 		}
-	}
 
-	err = s.ordersRepo.SetState(order.OrderId, model.OrderStatus_Cancelled)
+		for _, item := range order.Items {
+			err = s.stocksRepo.CancelReserve(tx, item.SkuId, item.Count)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = s.ordersRepo.SetState(tx, order.OrderId, model.OrderStatus_Cancelled)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}, nil)
+
 	if err != nil {
 		return err
 	}
@@ -123,6 +134,6 @@ func (s Service) CancelOrder(req *proto.CancelOrderRequest) error {
 	return nil
 }
 
-func (s Service) GetStockInfos(req *proto.GetStockInfoRequest) (*[]model.Stock, error) {
+func (s Service) GetStockInfos(req *proto.GetStockInfoRequest) ([]*model.Stock, error) {
 	return s.stocksRepo.GetStockInfos(req.SkuIds)
 }

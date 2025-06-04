@@ -72,7 +72,7 @@ func (h *Handler) GetStockInfo(ctx context.Context, req *proto.GetStockInfoReque
 	}
 
 	stockInfos := make([]*proto.StockInfo, 0)
-	for _, s := range *stocks {
+	for _, s := range stocks {
 		stockInfos = append(stockInfos, &proto.StockInfo{SkuId: s.SkuId, Count: s.TotalCount - s.Reserved})
 	}
 	return &proto.GetStockInfoResponse{StockInfos: stockInfos}, nil

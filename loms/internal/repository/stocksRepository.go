@@ -1,75 +1,118 @@
 package repository
 
 import (
-	"errors"
+	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"route256/loms/internal/model"
 )
 
 type StocksRepository struct {
-	stocks map[int64]*model.Stock
+	db *model.DBPools
 }
 
-func NewStocksRepository() *StocksRepository {
-	return &StocksRepository{
-		stocks: map[int64]*model.Stock{
-			773297411: {SkuId: 773297411, TotalCount: 150, Reserved: 10},
-			1002:      {SkuId: 1002, TotalCount: 200, Reserved: 20},
-			1003:      {SkuId: 1003, TotalCount: 250, Reserved: 30},
-			1004:      {SkuId: 1004, TotalCount: 300, Reserved: 40},
-			1005:      {SkuId: 1005, TotalCount: 350, Reserved: 50},
-		},
-	}
+func NewStocksRepository(db *model.DBPools) *StocksRepository {
+	return &StocksRepository{db: db}
 }
 
-func (r *StocksRepository) Reserve(skuId int64, count uint32) (model.OrderStatus, error) {
-	stock, ok := r.stocks[skuId]
-	if !ok {
-		return model.OrderStatus_Failed, errors.New("sku not found")
-	}
+func (r *StocksRepository) Reserve(tx pgx.Tx, items []*model.Item) error {
+	ctx := context.Background()
+	for _, item := range items {
+		res, err := tx.Exec(ctx,
+			`UPDATE stocks
+         SET reserved = reserved + $1
+         WHERE sku = $2
+         AND (total_count - reserved) >= $1`,
+			item.Count,
+			item.SkuId,
+		)
 
-	if count > (stock.TotalCount - stock.Reserved) {
-		return model.OrderStatus_Failed, errors.New("total count exceeded")
-	}
-
-	stock.Reserved += count
-	r.stocks[skuId] = stock
-	return model.OrderStatus_AwaitingPayment, nil
-}
-
-func (r *StocksRepository) CancelReserve(skuId int64, count uint32) error {
-	stock, ok := r.stocks[skuId]
-	if !ok {
-		return errors.New("sku not found")
-	}
-
-	stock.Reserved -= count
-	r.stocks[skuId] = stock
-	return nil
-}
-
-func (r *StocksRepository) RemoveReserve(skuId int64, count uint32) error {
-	stock, ok := r.stocks[skuId]
-	if !ok {
-		return errors.New("sku not found")
-	}
-
-	stock.Reserved -= count
-	stock.TotalCount -= count
-	r.stocks[skuId] = stock
-	return nil
-}
-
-func (r *StocksRepository) GetStockInfos(skuIds []int64) (*[]model.Stock, error) {
-	stocks := make([]model.Stock, 0)
-	for _, skuId := range skuIds {
-		stock, ok := r.stocks[skuId]
-		if !ok {
-			return nil, errors.New(fmt.Sprintf("sku %d not found", skuId))
+		if err != nil {
+			return fmt.Errorf("failed to reserve stock: %w", err)
 		}
 
-		stocks = append(stocks, *stock)
+		rowsAffected := res.RowsAffected()
+		if rowsAffected == 0 {
+			return fmt.Errorf("failed to check sku existence: %w", err)
+		}
 	}
 
-	return &stocks, nil
+	return nil
+}
+
+func (r *StocksRepository) CancelReserve(tx pgx.Tx, skuId int64, count uint32) error {
+	ctx := context.Background()
+	res, err := tx.Exec(ctx,
+		`UPDATE stocks
+         SET reserved = reserved - $1
+         WHERE sku = $2
+         AND reserved >= $1`,
+		count,
+		skuId,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to cancel reservation: %w", err)
+	}
+
+	rowsAffected := res.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("failed to verify SKU existence: %w", err)
+	}
+
+	return nil
+}
+
+func (r *StocksRepository) RemoveReserve(tx pgx.Tx, skuId int64, count uint32) error {
+	res, err := tx.Exec(context.Background(),
+		`UPDATE stocks
+         SET
+             reserved = reserved - $1,
+             total_count = total_count - $1
+         WHERE
+             sku = $2
+             AND reserved >= $1
+             AND total_count >= $1`,
+		count,
+		skuId,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to remove reservation: %w", err)
+	}
+
+	rowsAffected := res.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("failed to check stock levels: %w", err)
+	}
+
+	return nil
+}
+
+func (r *StocksRepository) GetStockInfos(skuIds []int64) ([]*model.Stock, error) {
+	if len(skuIds) == 0 {
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	query := `SELECT sku, total_count, reserved FROM stocks WHERE sku = ANY($1)`
+	rows, err := r.db.Replica.Query(ctx, query, skuIds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query stocks: %w", err)
+	}
+	defer rows.Close()
+
+	var stocks []*model.Stock
+	for rows.Next() {
+		var stock model.Stock
+		if err := rows.Scan(&stock.SkuId, &stock.TotalCount, &stock.Reserved); err != nil {
+			return nil, fmt.Errorf("failed to scan stock row: %w", err)
+		}
+		stocks = append(stocks, &stock)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return stocks, nil
 }

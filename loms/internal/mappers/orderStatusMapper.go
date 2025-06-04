@@ -7,6 +7,8 @@ import (
 
 func MapOrderStatusToBll(status model.OrderStatus) proto.OrderStatus {
 	switch status {
+	case model.OrderStatus_Unknown:
+		return proto.OrderStatus_UNKNOWN
 	case model.OrderStatus_New:
 		return proto.OrderStatus_NEW
 	case model.OrderStatus_AwaitingPayment:

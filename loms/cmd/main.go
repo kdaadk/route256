@@ -1,14 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
-	"log"
 	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"route256/loms/internal/handler"
+	"route256/loms/internal/model"
 	"route256/loms/internal/mw"
 	"route256/loms/internal/repository"
 	"route256/loms/internal/service"
@@ -17,14 +19,22 @@ import (
 )
 
 func main() {
-	ordersRepo := repository.NewOrdersRepository()
-	stocksRepo := repository.NewStocksRepository()
-	serv := service.NewService(ordersRepo, stocksRepo)
+	dbPool, err := initDBPools()
+	if err != nil {
+		slog.Error("Failed to connect to database")
+		return
+	}
+
+	txManager := repository.NewTxManager(dbPool)
+	ordersRepo := repository.NewOrdersRepository(dbPool)
+	stocksRepo := repository.NewStocksRepository(dbPool)
+	serv := service.NewService(ordersRepo, stocksRepo, txManager)
 	hand := handler.NewHandler(serv)
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		slog.Error("failed to listen: %v", err)
+		return
 	}
 
 	grpcServer := grpc.NewServer(
@@ -50,4 +60,28 @@ func main() {
 	slog.Info("Shutting down gRPC server...")
 	grpcServer.GracefulStop()
 	slog.Info("Server gracefully stopped.")
+}
+
+func initDBPools() (*model.DBPools, error) {
+	masterURL := os.Getenv("DB_MASTER_URL")
+	replicaURL := os.Getenv("DB_REPLICA_URL")
+
+	if masterURL == "" || replicaURL == "" {
+		return nil, errors.New("database URLs must be set in DB_MASTER_URL and DB_REPLICA_URL")
+	}
+	masterCfg, err := pgxpool.ParseConfig(masterURL)
+	masterPool, err := pgxpool.NewWithConfig(context.Background(), masterCfg)
+	if err != nil {
+		return nil, err
+	}
+	defer masterPool.Close()
+
+	replicaCfg, err := pgxpool.ParseConfig(replicaURL)
+	replicaPool, err := pgxpool.NewWithConfig(context.Background(), replicaCfg)
+	if err != nil {
+		return nil, err
+	}
+	defer masterPool.Close()
+
+	return &model.DBPools{Master: masterPool, Replica: replicaPool}, nil
 }

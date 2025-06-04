@@ -41,34 +41,34 @@ service LomsService {
 }
 
 message CreateOrderRequest {
-    int64 user_id = 1 [(validate.rules).int64.gt = 0];  // user_id must be > 0
+    int64 user_id = 1 [(validate.rules).int64.gt = 0];
     repeated OrderItem items = 2 [(validate.rules).repeated = {
-        min_items: 1,  // At least 1 item required
-        items: { message: { required: true } }  // Each item must be valid
+        min_items: 1,
+        items: { message: { required: true } }
     }];
 }
 
 message OrderItem {
-    int32 sku = 1 [(validate.rules).int32.gt = 0];  // SKU must be > 0
-    int32 count = 2 [(validate.rules).int32.gt = 0]; // Count must be > 0
+    int32 sku = 1 [(validate.rules).int32.gt = 0];
+    int32 count = 2 [(validate.rules).int32.gt = 0];
 }
 
 message GetByIdRequest {
-    int64 order_id = 1 [(validate.rules).int64.gt = 0];  // order_id must be > 0
+    int64 order_id = 1 [(validate.rules).int64.gt = 0];
 }
 
 message PayOrderRequest {
-    int64 order_id = 1 [(validate.rules).int64.gt = 0];  // order_id must be > 0
+    int64 order_id = 1 [(validate.rules).int64.gt = 0];
 }
 
 message CancelOrderRequest {
-    int64 order_id = 1 [(validate.rules).int64.gt = 0];  // order_id must be > 0
+    int64 order_id = 1 [(validate.rules).int64.gt = 0];
 }
 
 message GetStockInfoRequest {
     repeated int64 sku_ids = 1 [(validate.rules).repeated = {
-        min_items: 1,  // At least 1 SKU required
-        items: { int64: { gt: 0 } }  // Each SKU must be > 0
+        min_items: 1,
+        items: { int64: { gt: 0 } }
     }];
 }
 

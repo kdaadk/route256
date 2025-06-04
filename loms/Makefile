@@ -92,3 +92,11 @@ PROTO_FILES := $(wildcard $(LOMS_PROTO_PATH)/*.proto)
 	go mod tidy
 
 .all: .protoc-generate
+
+.PHONY: .install-goose
+.install-goose:
+	GOBIN=$(LOCAL_BIN) go install github.com/pressly/goose/v3/cmd/goose@v3.22.1
+
+.PHONY: .apply-migrations
+.apply-migrations:
+	bin/goose -dir migrations postgres "postgresql://loms:loms@127.0.0.1:5432/loms?sslmode=disable" up
