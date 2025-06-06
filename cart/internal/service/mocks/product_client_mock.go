@@ -2,9 +2,10 @@
 
 package mocks
 
-//go:generate minimock -i route256/cart/internal/service.productClient -o product_client_mock.go -n ProductClientMock -p mocks
+//go:generate minimock -i route256/cart/internal/service.productCli -o product_client_mock.go -n ProductClientMock -p mocks
 
 import (
+	"context"
 	"route256/cart/internal/model"
 	"sync"
 	mm_atomic "sync/atomic"
@@ -13,20 +14,20 @@ import (
 	"github.com/gojuno/minimock/v3"
 )
 
-// ProductClientMock implements mm_service.productClient
+// ProductClientMock implements mm_service.productCli
 type ProductClientMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
 
-	funcGetProduct          func(productId int64) (pp1 *model.Product, err error)
+	funcGetProduct          func(ctx context.Context, productId int64) (pp1 *model.Product, err error)
 	funcGetProductOrigin    string
-	inspectFuncGetProduct   func(productId int64)
+	inspectFuncGetProduct   func(ctx context.Context, productId int64)
 	afterGetProductCounter  uint64
 	beforeGetProductCounter uint64
 	GetProductMock          mProductClientMockGetProduct
 }
 
-// NewProductClientMock returns a mock for mm_service.productClient
+// NewProductClientMock returns a mock for mm_service.productCli
 func NewProductClientMock(t minimock.Tester) *ProductClientMock {
 	m := &ProductClientMock{t: t}
 
@@ -55,7 +56,7 @@ type mProductClientMockGetProduct struct {
 	expectedInvocationsOrigin string
 }
 
-// ProductClientMockGetProductExpectation specifies expectation struct of the productClient.GetProduct
+// ProductClientMockGetProductExpectation specifies expectation struct of the productCli.GetProduct
 type ProductClientMockGetProductExpectation struct {
 	mock               *ProductClientMock
 	params             *ProductClientMockGetProductParams
@@ -66,25 +67,28 @@ type ProductClientMockGetProductExpectation struct {
 	Counter            uint64
 }
 
-// ProductClientMockGetProductParams contains parameters of the productClient.GetProduct
+// ProductClientMockGetProductParams contains parameters of the productCli.GetProduct
 type ProductClientMockGetProductParams struct {
+	ctx       context.Context
 	productId int64
 }
 
-// ProductClientMockGetProductParamPtrs contains pointers to parameters of the productClient.GetProduct
+// ProductClientMockGetProductParamPtrs contains pointers to parameters of the productCli.GetProduct
 type ProductClientMockGetProductParamPtrs struct {
+	ctx       *context.Context
 	productId *int64
 }
 
-// ProductClientMockGetProductResults contains results of the productClient.GetProduct
+// ProductClientMockGetProductResults contains results of the productCli.GetProduct
 type ProductClientMockGetProductResults struct {
 	pp1 *model.Product
 	err error
 }
 
-// ProductClientMockGetProductOrigins contains origins of expectations of the productClient.GetProduct
+// ProductClientMockGetProductOrigins contains origins of expectations of the productCli.GetProduct
 type ProductClientMockGetProductExpectationOrigins struct {
 	origin          string
+	originCtx       string
 	originProductId string
 }
 
@@ -98,8 +102,8 @@ func (mmGetProduct *mProductClientMockGetProduct) Optional() *mProductClientMock
 	return mmGetProduct
 }
 
-// Expect sets up expected params for productClient.GetProduct
-func (mmGetProduct *mProductClientMockGetProduct) Expect(productId int64) *mProductClientMockGetProduct {
+// Expect sets up expected params for productCli.GetProduct
+func (mmGetProduct *mProductClientMockGetProduct) Expect(ctx context.Context, productId int64) *mProductClientMockGetProduct {
 	if mmGetProduct.mock.funcGetProduct != nil {
 		mmGetProduct.mock.t.Fatalf("ProductClientMock.GetProduct mock is already set by Set")
 	}
@@ -112,7 +116,7 @@ func (mmGetProduct *mProductClientMockGetProduct) Expect(productId int64) *mProd
 		mmGetProduct.mock.t.Fatalf("ProductClientMock.GetProduct mock is already set by ExpectParams functions")
 	}
 
-	mmGetProduct.defaultExpectation.params = &ProductClientMockGetProductParams{productId}
+	mmGetProduct.defaultExpectation.params = &ProductClientMockGetProductParams{ctx, productId}
 	mmGetProduct.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmGetProduct.expectations {
 		if minimock.Equal(e.params, mmGetProduct.defaultExpectation.params) {
@@ -123,8 +127,31 @@ func (mmGetProduct *mProductClientMockGetProduct) Expect(productId int64) *mProd
 	return mmGetProduct
 }
 
-// ExpectProductIdParam1 sets up expected param productId for productClient.GetProduct
-func (mmGetProduct *mProductClientMockGetProduct) ExpectProductIdParam1(productId int64) *mProductClientMockGetProduct {
+// ExpectCtxParam1 sets up expected param ctx for productCli.GetProduct
+func (mmGetProduct *mProductClientMockGetProduct) ExpectCtxParam1(ctx context.Context) *mProductClientMockGetProduct {
+	if mmGetProduct.mock.funcGetProduct != nil {
+		mmGetProduct.mock.t.Fatalf("ProductClientMock.GetProduct mock is already set by Set")
+	}
+
+	if mmGetProduct.defaultExpectation == nil {
+		mmGetProduct.defaultExpectation = &ProductClientMockGetProductExpectation{}
+	}
+
+	if mmGetProduct.defaultExpectation.params != nil {
+		mmGetProduct.mock.t.Fatalf("ProductClientMock.GetProduct mock is already set by Expect")
+	}
+
+	if mmGetProduct.defaultExpectation.paramPtrs == nil {
+		mmGetProduct.defaultExpectation.paramPtrs = &ProductClientMockGetProductParamPtrs{}
+	}
+	mmGetProduct.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetProduct.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetProduct
+}
+
+// ExpectProductIdParam2 sets up expected param productId for productCli.GetProduct
+func (mmGetProduct *mProductClientMockGetProduct) ExpectProductIdParam2(productId int64) *mProductClientMockGetProduct {
 	if mmGetProduct.mock.funcGetProduct != nil {
 		mmGetProduct.mock.t.Fatalf("ProductClientMock.GetProduct mock is already set by Set")
 	}
@@ -146,8 +173,8 @@ func (mmGetProduct *mProductClientMockGetProduct) ExpectProductIdParam1(productI
 	return mmGetProduct
 }
 
-// Inspect accepts an inspector function that has same arguments as the productClient.GetProduct
-func (mmGetProduct *mProductClientMockGetProduct) Inspect(f func(productId int64)) *mProductClientMockGetProduct {
+// Inspect accepts an inspector function that has same arguments as the productCli.GetProduct
+func (mmGetProduct *mProductClientMockGetProduct) Inspect(f func(ctx context.Context, productId int64)) *mProductClientMockGetProduct {
 	if mmGetProduct.mock.inspectFuncGetProduct != nil {
 		mmGetProduct.mock.t.Fatalf("Inspect function is already set for ProductClientMock.GetProduct")
 	}
@@ -157,7 +184,7 @@ func (mmGetProduct *mProductClientMockGetProduct) Inspect(f func(productId int64
 	return mmGetProduct
 }
 
-// Return sets up results that will be returned by productClient.GetProduct
+// Return sets up results that will be returned by productCli.GetProduct
 func (mmGetProduct *mProductClientMockGetProduct) Return(pp1 *model.Product, err error) *ProductClientMock {
 	if mmGetProduct.mock.funcGetProduct != nil {
 		mmGetProduct.mock.t.Fatalf("ProductClientMock.GetProduct mock is already set by Set")
@@ -171,14 +198,14 @@ func (mmGetProduct *mProductClientMockGetProduct) Return(pp1 *model.Product, err
 	return mmGetProduct.mock
 }
 
-// Set uses given function f to mock the productClient.GetProduct method
-func (mmGetProduct *mProductClientMockGetProduct) Set(f func(productId int64) (pp1 *model.Product, err error)) *ProductClientMock {
+// Set uses given function f to mock the productCli.GetProduct method
+func (mmGetProduct *mProductClientMockGetProduct) Set(f func(ctx context.Context, productId int64) (pp1 *model.Product, err error)) *ProductClientMock {
 	if mmGetProduct.defaultExpectation != nil {
-		mmGetProduct.mock.t.Fatalf("Default expectation is already set for the productClient.GetProduct method")
+		mmGetProduct.mock.t.Fatalf("Default expectation is already set for the productCli.GetProduct method")
 	}
 
 	if len(mmGetProduct.expectations) > 0 {
-		mmGetProduct.mock.t.Fatalf("Some expectations are already set for the productClient.GetProduct method")
+		mmGetProduct.mock.t.Fatalf("Some expectations are already set for the productCli.GetProduct method")
 	}
 
 	mmGetProduct.mock.funcGetProduct = f
@@ -186,29 +213,29 @@ func (mmGetProduct *mProductClientMockGetProduct) Set(f func(productId int64) (p
 	return mmGetProduct.mock
 }
 
-// When sets expectation for the productClient.GetProduct which will trigger the result defined by the following
+// When sets expectation for the productCli.GetProduct which will trigger the result defined by the following
 // Then helper
-func (mmGetProduct *mProductClientMockGetProduct) When(productId int64) *ProductClientMockGetProductExpectation {
+func (mmGetProduct *mProductClientMockGetProduct) When(ctx context.Context, productId int64) *ProductClientMockGetProductExpectation {
 	if mmGetProduct.mock.funcGetProduct != nil {
 		mmGetProduct.mock.t.Fatalf("ProductClientMock.GetProduct mock is already set by Set")
 	}
 
 	expectation := &ProductClientMockGetProductExpectation{
 		mock:               mmGetProduct.mock,
-		params:             &ProductClientMockGetProductParams{productId},
+		params:             &ProductClientMockGetProductParams{ctx, productId},
 		expectationOrigins: ProductClientMockGetProductExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmGetProduct.expectations = append(mmGetProduct.expectations, expectation)
 	return expectation
 }
 
-// Then sets up productClient.GetProduct return parameters for the expectation previously defined by the When method
+// Then sets up productCli.GetProduct return parameters for the expectation previously defined by the When method
 func (e *ProductClientMockGetProductExpectation) Then(pp1 *model.Product, err error) *ProductClientMock {
 	e.results = &ProductClientMockGetProductResults{pp1, err}
 	return e.mock
 }
 
-// Times sets number of times productClient.GetProduct should be invoked
+// Times sets number of times productCli.GetProduct should be invoked
 func (mmGetProduct *mProductClientMockGetProduct) Times(n uint64) *mProductClientMockGetProduct {
 	if n == 0 {
 		mmGetProduct.mock.t.Fatalf("Times of ProductClientMock.GetProduct mock can not be zero")
@@ -229,18 +256,18 @@ func (mmGetProduct *mProductClientMockGetProduct) invocationsDone() bool {
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetProduct implements mm_service.productClient
-func (mmGetProduct *ProductClientMock) GetProduct(productId int64) (pp1 *model.Product, err error) {
+// GetProduct implements mm_service.productCli
+func (mmGetProduct *ProductClientMock) GetProduct(ctx context.Context, productId int64) (pp1 *model.Product, err error) {
 	mm_atomic.AddUint64(&mmGetProduct.beforeGetProductCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetProduct.afterGetProductCounter, 1)
 
 	mmGetProduct.t.Helper()
 
 	if mmGetProduct.inspectFuncGetProduct != nil {
-		mmGetProduct.inspectFuncGetProduct(productId)
+		mmGetProduct.inspectFuncGetProduct(ctx, productId)
 	}
 
-	mm_params := ProductClientMockGetProductParams{productId}
+	mm_params := ProductClientMockGetProductParams{ctx, productId}
 
 	// Record call args
 	mmGetProduct.GetProductMock.mutex.Lock()
@@ -259,9 +286,14 @@ func (mmGetProduct *ProductClientMock) GetProduct(productId int64) (pp1 *model.P
 		mm_want := mmGetProduct.GetProductMock.defaultExpectation.params
 		mm_want_ptrs := mmGetProduct.GetProductMock.defaultExpectation.paramPtrs
 
-		mm_got := ProductClientMockGetProductParams{productId}
+		mm_got := ProductClientMockGetProductParams{ctx, productId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetProduct.t.Errorf("ProductClientMock.GetProduct got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetProduct.GetProductMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.productId != nil && !minimock.Equal(*mm_want_ptrs.productId, mm_got.productId) {
 				mmGetProduct.t.Errorf("ProductClientMock.GetProduct got unexpected parameter productId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
@@ -280,9 +312,9 @@ func (mmGetProduct *ProductClientMock) GetProduct(productId int64) (pp1 *model.P
 		return (*mm_results).pp1, (*mm_results).err
 	}
 	if mmGetProduct.funcGetProduct != nil {
-		return mmGetProduct.funcGetProduct(productId)
+		return mmGetProduct.funcGetProduct(ctx, productId)
 	}
-	mmGetProduct.t.Fatalf("Unexpected call to ProductClientMock.GetProduct. %v", productId)
+	mmGetProduct.t.Fatalf("Unexpected call to ProductClientMock.GetProduct. %v %v", ctx, productId)
 	return
 }
 

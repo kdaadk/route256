@@ -1,11 +1,14 @@
 package product
 
 import (
+	"context"
 	"encoding/json"
+	"golang.org/x/time/rate"
 	"net/http"
 	"net/http/httptest"
 	"route256/cart/internal/model"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -25,11 +28,12 @@ func TestClient_GetProduct_Success(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		baseURL: server.URL,
-		client:  server.Client(),
+		baseURL:     server.URL,
+		client:      server.Client(),
+		rateLimiter: rate.NewLimiter(rate.Every(100*time.Millisecond), 10),
 	}
 
-	got, err := client.GetProduct(123)
+	got, err := client.GetProduct(context.Background(), 123)
 	require.NoError(t, err)
 	require.Equal(t, &expected, got)
 }
@@ -42,11 +46,12 @@ func TestClient_GetProduct_HTTPError(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		baseURL: server.URL,
-		client:  server.Client(),
+		baseURL:     server.URL,
+		client:      server.Client(),
+		rateLimiter: rate.NewLimiter(rate.Every(100*time.Millisecond), 10),
 	}
 
-	_, err := client.GetProduct(123)
+	_, err := client.GetProduct(context.Background(), 123)
 	require.ErrorIs(t, err, model.ErrPreconditionFailed)
 }
 
@@ -58,11 +63,12 @@ func TestClient_GetProduct_DecodeError(t *testing.T) {
 	defer server.Close()
 
 	client := &Client{
-		baseURL: server.URL,
-		client:  server.Client(),
+		baseURL:     server.URL,
+		client:      server.Client(),
+		rateLimiter: rate.NewLimiter(rate.Every(100*time.Millisecond), 10),
 	}
 
-	_, err := client.GetProduct(123)
+	_, err := client.GetProduct(context.Background(), 123)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to decode product")
 }

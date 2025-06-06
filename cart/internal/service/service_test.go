@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,7 @@ func setupMocks(mc *minimock.Controller) (*mocks.CartRepoMock, *mocks.ProductCli
 func TestGetProduct(t *testing.T) {
 	// arrange
 	var productId int64 = 123
+	ctx := context.Background()
 	wantProduct := model.Product{
 		Id:    productId,
 		Name:  "test",
@@ -31,10 +33,10 @@ func TestGetProduct(t *testing.T) {
 
 	ctrl := minimock.NewController(t)
 	_, productCliMock, _, serv := setupMocks(ctrl)
-	productCliMock.GetProductMock.Expect(productId).Return(&wantProduct, nil)
+	productCliMock.GetProductMock.Expect(ctx, productId).Return(&wantProduct, nil)
 
 	// act
-	actual, err := serv.productCli.GetProduct(productId)
+	actual, err := serv.productCli.GetProduct(ctx, productId)
 	require.NoError(t, err)
 
 	// assert
@@ -50,23 +52,22 @@ func TestAddItemToCart(t *testing.T) {
 		Name:  fmt.Sprintf("Product %d", productId),
 		Price: 100,
 	}
-	wantItem := model.Item{
+	ctx := context.Background()
+	wantItem := model.DtoItem{
 		SkuId: productId,
-		Name:  product.Name,
-		Price: product.Price,
 		Count: 1,
 	}
 
 	ctrl := minimock.NewController(t)
 	cartRepoMock, productCliMock, lomsCliMock, serv := setupMocks(ctrl)
-	productCliMock.GetProductMock.Expect(productId).Return(product, nil)
-	lomsCliMock.GetStockInfosMock.Expect([]int64{productId}).Return(
+	productCliMock.GetProductMock.Expect(ctx, productId).Return(product, nil)
+	lomsCliMock.GetStockInfosMock.Expect(ctx, []int64{productId}).Return(
 		&proto.GetStockInfoResponse{StockInfos: []*proto.StockInfo{{SkuId: productId, Count: uint32(wantItem.Count)}}},
 		nil)
-	cartRepoMock.AddItemToCartMock.Expect(userId, &wantItem).Return(nil)
+	cartRepoMock.AddItemToCartMock.Expect(ctx, userId, &wantItem).Return(nil)
 
 	// act assert
-	err := serv.AddItemToCart(userId, productId, 1)
+	err := serv.AddItemToCart(ctx, userId, productId, 1)
 	require.NoError(t, err)
 }
 
@@ -74,32 +75,38 @@ func TestDeleteFromCart(t *testing.T) {
 	// arrange
 	var userId int64 = 333
 	var skuId int64 = 111
+	ctx := context.Background()
 
 	ctrl := minimock.NewController(t)
 	cartRepoMock, _, _, serv := setupMocks(ctrl)
-	cartRepoMock.DeleteFromCartMock.Expect(userId, skuId).Return(nil)
+	cartRepoMock.DeleteFromCartMock.Expect(ctx, userId, skuId).Return(nil)
 
 	// act assert
-	err := serv.DeleteFromCart(userId, skuId)
+	err := serv.DeleteFromCart(ctx, userId, skuId)
 	require.NoError(t, err)
 }
 
 func TestGetItems(t *testing.T) {
 	// arrange
 	var userId int64 = 333
-	wantUserData := model.UserData{
-		Items:      map[int64]*model.Item{},
-		TotalPrice: 0,
+	ctx := context.Background()
+	wantUserData := model.DtoUserData{
+		Items: map[int64]*model.DtoItem{},
 	}
 
 	ctrl := minimock.NewController(t)
 	cartRepoMock, _, _, serv := setupMocks(ctrl)
-	cartRepoMock.GetItemsMock.Expect(userId).Return(&wantUserData, nil)
+	cartRepoMock.GetItemsMock.Expect(ctx, userId).Return(&wantUserData, nil)
 
 	// act
-	actual, err := serv.GetItems(userId)
+	actual, err := serv.GetItems(ctx, userId)
 	require.NoError(t, err)
 
 	// assert
-	assert.Equal(t, &wantUserData, actual)
+	assert.Equal(t, len(wantUserData.Items), len(actual.Items))
+	for i, item := range wantUserData.Items {
+		actualItem := actual.Items[i]
+		assert.Equal(t, item.SkuId, actualItem.SkuId)
+		assert.Equal(t, item.Count, actualItem.Count)
+	}
 }

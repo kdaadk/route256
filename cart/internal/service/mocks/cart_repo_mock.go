@@ -5,6 +5,7 @@ package mocks
 //go:generate minimock -i route256/cart/internal/service.cartRepo -o cart_repo_mock.go -n CartRepoMock -p mocks
 
 import (
+	"context"
 	"route256/cart/internal/model"
 	"sync"
 	mm_atomic "sync/atomic"
@@ -18,30 +19,30 @@ type CartRepoMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
 
-	funcAddItemToCart          func(userId int64, item *model.Item) (err error)
+	funcAddItemToCart          func(ctx context.Context, userId int64, item *model.DtoItem) (err error)
 	funcAddItemToCartOrigin    string
-	inspectFuncAddItemToCart   func(userId int64, item *model.Item)
+	inspectFuncAddItemToCart   func(ctx context.Context, userId int64, item *model.DtoItem)
 	afterAddItemToCartCounter  uint64
 	beforeAddItemToCartCounter uint64
 	AddItemToCartMock          mCartRepoMockAddItemToCart
 
-	funcDeleteAllFromCart          func(userId int64) (err error)
+	funcDeleteAllFromCart          func(ctx context.Context, userId int64) (err error)
 	funcDeleteAllFromCartOrigin    string
-	inspectFuncDeleteAllFromCart   func(userId int64)
+	inspectFuncDeleteAllFromCart   func(ctx context.Context, userId int64)
 	afterDeleteAllFromCartCounter  uint64
 	beforeDeleteAllFromCartCounter uint64
 	DeleteAllFromCartMock          mCartRepoMockDeleteAllFromCart
 
-	funcDeleteFromCart          func(userId int64, skuId int64) (err error)
+	funcDeleteFromCart          func(ctx context.Context, userId int64, skuId int64) (err error)
 	funcDeleteFromCartOrigin    string
-	inspectFuncDeleteFromCart   func(userId int64, skuId int64)
+	inspectFuncDeleteFromCart   func(ctx context.Context, userId int64, skuId int64)
 	afterDeleteFromCartCounter  uint64
 	beforeDeleteFromCartCounter uint64
 	DeleteFromCartMock          mCartRepoMockDeleteFromCart
 
-	funcGetItems          func(userId int64) (up1 *model.UserData, err error)
+	funcGetItems          func(ctx context.Context, userId int64) (dp1 *model.DtoUserData, err error)
 	funcGetItemsOrigin    string
-	inspectFuncGetItems   func(userId int64)
+	inspectFuncGetItems   func(ctx context.Context, userId int64)
 	afterGetItemsCounter  uint64
 	beforeGetItemsCounter uint64
 	GetItemsMock          mCartRepoMockGetItems
@@ -98,14 +99,16 @@ type CartRepoMockAddItemToCartExpectation struct {
 
 // CartRepoMockAddItemToCartParams contains parameters of the cartRepo.AddItemToCart
 type CartRepoMockAddItemToCartParams struct {
+	ctx    context.Context
 	userId int64
-	item   *model.Item
+	item   *model.DtoItem
 }
 
 // CartRepoMockAddItemToCartParamPtrs contains pointers to parameters of the cartRepo.AddItemToCart
 type CartRepoMockAddItemToCartParamPtrs struct {
+	ctx    *context.Context
 	userId *int64
-	item   **model.Item
+	item   **model.DtoItem
 }
 
 // CartRepoMockAddItemToCartResults contains results of the cartRepo.AddItemToCart
@@ -116,6 +119,7 @@ type CartRepoMockAddItemToCartResults struct {
 // CartRepoMockAddItemToCartOrigins contains origins of expectations of the cartRepo.AddItemToCart
 type CartRepoMockAddItemToCartExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
 	originItem   string
 }
@@ -131,7 +135,7 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) Optional() *mCartRepoMockAddI
 }
 
 // Expect sets up expected params for cartRepo.AddItemToCart
-func (mmAddItemToCart *mCartRepoMockAddItemToCart) Expect(userId int64, item *model.Item) *mCartRepoMockAddItemToCart {
+func (mmAddItemToCart *mCartRepoMockAddItemToCart) Expect(ctx context.Context, userId int64, item *model.DtoItem) *mCartRepoMockAddItemToCart {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartRepoMock.AddItemToCart mock is already set by Set")
 	}
@@ -144,7 +148,7 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) Expect(userId int64, item *mo
 		mmAddItemToCart.mock.t.Fatalf("CartRepoMock.AddItemToCart mock is already set by ExpectParams functions")
 	}
 
-	mmAddItemToCart.defaultExpectation.params = &CartRepoMockAddItemToCartParams{userId, item}
+	mmAddItemToCart.defaultExpectation.params = &CartRepoMockAddItemToCartParams{ctx, userId, item}
 	mmAddItemToCart.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmAddItemToCart.expectations {
 		if minimock.Equal(e.params, mmAddItemToCart.defaultExpectation.params) {
@@ -155,8 +159,31 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) Expect(userId int64, item *mo
 	return mmAddItemToCart
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartRepo.AddItemToCart
-func (mmAddItemToCart *mCartRepoMockAddItemToCart) ExpectUserIdParam1(userId int64) *mCartRepoMockAddItemToCart {
+// ExpectCtxParam1 sets up expected param ctx for cartRepo.AddItemToCart
+func (mmAddItemToCart *mCartRepoMockAddItemToCart) ExpectCtxParam1(ctx context.Context) *mCartRepoMockAddItemToCart {
+	if mmAddItemToCart.mock.funcAddItemToCart != nil {
+		mmAddItemToCart.mock.t.Fatalf("CartRepoMock.AddItemToCart mock is already set by Set")
+	}
+
+	if mmAddItemToCart.defaultExpectation == nil {
+		mmAddItemToCart.defaultExpectation = &CartRepoMockAddItemToCartExpectation{}
+	}
+
+	if mmAddItemToCart.defaultExpectation.params != nil {
+		mmAddItemToCart.mock.t.Fatalf("CartRepoMock.AddItemToCart mock is already set by Expect")
+	}
+
+	if mmAddItemToCart.defaultExpectation.paramPtrs == nil {
+		mmAddItemToCart.defaultExpectation.paramPtrs = &CartRepoMockAddItemToCartParamPtrs{}
+	}
+	mmAddItemToCart.defaultExpectation.paramPtrs.ctx = &ctx
+	mmAddItemToCart.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmAddItemToCart
+}
+
+// ExpectUserIdParam2 sets up expected param userId for cartRepo.AddItemToCart
+func (mmAddItemToCart *mCartRepoMockAddItemToCart) ExpectUserIdParam2(userId int64) *mCartRepoMockAddItemToCart {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartRepoMock.AddItemToCart mock is already set by Set")
 	}
@@ -178,8 +205,8 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) ExpectUserIdParam1(userId int
 	return mmAddItemToCart
 }
 
-// ExpectItemParam2 sets up expected param item for cartRepo.AddItemToCart
-func (mmAddItemToCart *mCartRepoMockAddItemToCart) ExpectItemParam2(item *model.Item) *mCartRepoMockAddItemToCart {
+// ExpectItemParam3 sets up expected param item for cartRepo.AddItemToCart
+func (mmAddItemToCart *mCartRepoMockAddItemToCart) ExpectItemParam3(item *model.DtoItem) *mCartRepoMockAddItemToCart {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartRepoMock.AddItemToCart mock is already set by Set")
 	}
@@ -202,7 +229,7 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) ExpectItemParam2(item *model.
 }
 
 // Inspect accepts an inspector function that has same arguments as the cartRepo.AddItemToCart
-func (mmAddItemToCart *mCartRepoMockAddItemToCart) Inspect(f func(userId int64, item *model.Item)) *mCartRepoMockAddItemToCart {
+func (mmAddItemToCart *mCartRepoMockAddItemToCart) Inspect(f func(ctx context.Context, userId int64, item *model.DtoItem)) *mCartRepoMockAddItemToCart {
 	if mmAddItemToCart.mock.inspectFuncAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("Inspect function is already set for CartRepoMock.AddItemToCart")
 	}
@@ -227,7 +254,7 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) Return(err error) *CartRepoMo
 }
 
 // Set uses given function f to mock the cartRepo.AddItemToCart method
-func (mmAddItemToCart *mCartRepoMockAddItemToCart) Set(f func(userId int64, item *model.Item) (err error)) *CartRepoMock {
+func (mmAddItemToCart *mCartRepoMockAddItemToCart) Set(f func(ctx context.Context, userId int64, item *model.DtoItem) (err error)) *CartRepoMock {
 	if mmAddItemToCart.defaultExpectation != nil {
 		mmAddItemToCart.mock.t.Fatalf("Default expectation is already set for the cartRepo.AddItemToCart method")
 	}
@@ -243,14 +270,14 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) Set(f func(userId int64, item
 
 // When sets expectation for the cartRepo.AddItemToCart which will trigger the result defined by the following
 // Then helper
-func (mmAddItemToCart *mCartRepoMockAddItemToCart) When(userId int64, item *model.Item) *CartRepoMockAddItemToCartExpectation {
+func (mmAddItemToCart *mCartRepoMockAddItemToCart) When(ctx context.Context, userId int64, item *model.DtoItem) *CartRepoMockAddItemToCartExpectation {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartRepoMock.AddItemToCart mock is already set by Set")
 	}
 
 	expectation := &CartRepoMockAddItemToCartExpectation{
 		mock:               mmAddItemToCart.mock,
-		params:             &CartRepoMockAddItemToCartParams{userId, item},
+		params:             &CartRepoMockAddItemToCartParams{ctx, userId, item},
 		expectationOrigins: CartRepoMockAddItemToCartExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmAddItemToCart.expectations = append(mmAddItemToCart.expectations, expectation)
@@ -285,17 +312,17 @@ func (mmAddItemToCart *mCartRepoMockAddItemToCart) invocationsDone() bool {
 }
 
 // AddItemToCart implements mm_service.cartRepo
-func (mmAddItemToCart *CartRepoMock) AddItemToCart(userId int64, item *model.Item) (err error) {
+func (mmAddItemToCart *CartRepoMock) AddItemToCart(ctx context.Context, userId int64, item *model.DtoItem) (err error) {
 	mm_atomic.AddUint64(&mmAddItemToCart.beforeAddItemToCartCounter, 1)
 	defer mm_atomic.AddUint64(&mmAddItemToCart.afterAddItemToCartCounter, 1)
 
 	mmAddItemToCart.t.Helper()
 
 	if mmAddItemToCart.inspectFuncAddItemToCart != nil {
-		mmAddItemToCart.inspectFuncAddItemToCart(userId, item)
+		mmAddItemToCart.inspectFuncAddItemToCart(ctx, userId, item)
 	}
 
-	mm_params := CartRepoMockAddItemToCartParams{userId, item}
+	mm_params := CartRepoMockAddItemToCartParams{ctx, userId, item}
 
 	// Record call args
 	mmAddItemToCart.AddItemToCartMock.mutex.Lock()
@@ -314,9 +341,14 @@ func (mmAddItemToCart *CartRepoMock) AddItemToCart(userId int64, item *model.Ite
 		mm_want := mmAddItemToCart.AddItemToCartMock.defaultExpectation.params
 		mm_want_ptrs := mmAddItemToCart.AddItemToCartMock.defaultExpectation.paramPtrs
 
-		mm_got := CartRepoMockAddItemToCartParams{userId, item}
+		mm_got := CartRepoMockAddItemToCartParams{ctx, userId, item}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmAddItemToCart.t.Errorf("CartRepoMock.AddItemToCart got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAddItemToCart.AddItemToCartMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
 				mmAddItemToCart.t.Errorf("CartRepoMock.AddItemToCart got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
@@ -340,9 +372,9 @@ func (mmAddItemToCart *CartRepoMock) AddItemToCart(userId int64, item *model.Ite
 		return (*mm_results).err
 	}
 	if mmAddItemToCart.funcAddItemToCart != nil {
-		return mmAddItemToCart.funcAddItemToCart(userId, item)
+		return mmAddItemToCart.funcAddItemToCart(ctx, userId, item)
 	}
-	mmAddItemToCart.t.Fatalf("Unexpected call to CartRepoMock.AddItemToCart. %v %v", userId, item)
+	mmAddItemToCart.t.Fatalf("Unexpected call to CartRepoMock.AddItemToCart. %v %v %v", ctx, userId, item)
 	return
 }
 
@@ -440,11 +472,13 @@ type CartRepoMockDeleteAllFromCartExpectation struct {
 
 // CartRepoMockDeleteAllFromCartParams contains parameters of the cartRepo.DeleteAllFromCart
 type CartRepoMockDeleteAllFromCartParams struct {
+	ctx    context.Context
 	userId int64
 }
 
 // CartRepoMockDeleteAllFromCartParamPtrs contains pointers to parameters of the cartRepo.DeleteAllFromCart
 type CartRepoMockDeleteAllFromCartParamPtrs struct {
+	ctx    *context.Context
 	userId *int64
 }
 
@@ -456,6 +490,7 @@ type CartRepoMockDeleteAllFromCartResults struct {
 // CartRepoMockDeleteAllFromCartOrigins contains origins of expectations of the cartRepo.DeleteAllFromCart
 type CartRepoMockDeleteAllFromCartExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
 }
 
@@ -470,7 +505,7 @@ func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Optional() *mCartRepo
 }
 
 // Expect sets up expected params for cartRepo.DeleteAllFromCart
-func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Expect(userId int64) *mCartRepoMockDeleteAllFromCart {
+func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Expect(ctx context.Context, userId int64) *mCartRepoMockDeleteAllFromCart {
 	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
 		mmDeleteAllFromCart.mock.t.Fatalf("CartRepoMock.DeleteAllFromCart mock is already set by Set")
 	}
@@ -483,7 +518,7 @@ func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Expect(userId int64) 
 		mmDeleteAllFromCart.mock.t.Fatalf("CartRepoMock.DeleteAllFromCart mock is already set by ExpectParams functions")
 	}
 
-	mmDeleteAllFromCart.defaultExpectation.params = &CartRepoMockDeleteAllFromCartParams{userId}
+	mmDeleteAllFromCart.defaultExpectation.params = &CartRepoMockDeleteAllFromCartParams{ctx, userId}
 	mmDeleteAllFromCart.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmDeleteAllFromCart.expectations {
 		if minimock.Equal(e.params, mmDeleteAllFromCart.defaultExpectation.params) {
@@ -494,8 +529,31 @@ func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Expect(userId int64) 
 	return mmDeleteAllFromCart
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartRepo.DeleteAllFromCart
-func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) ExpectUserIdParam1(userId int64) *mCartRepoMockDeleteAllFromCart {
+// ExpectCtxParam1 sets up expected param ctx for cartRepo.DeleteAllFromCart
+func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) ExpectCtxParam1(ctx context.Context) *mCartRepoMockDeleteAllFromCart {
+	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
+		mmDeleteAllFromCart.mock.t.Fatalf("CartRepoMock.DeleteAllFromCart mock is already set by Set")
+	}
+
+	if mmDeleteAllFromCart.defaultExpectation == nil {
+		mmDeleteAllFromCart.defaultExpectation = &CartRepoMockDeleteAllFromCartExpectation{}
+	}
+
+	if mmDeleteAllFromCart.defaultExpectation.params != nil {
+		mmDeleteAllFromCart.mock.t.Fatalf("CartRepoMock.DeleteAllFromCart mock is already set by Expect")
+	}
+
+	if mmDeleteAllFromCart.defaultExpectation.paramPtrs == nil {
+		mmDeleteAllFromCart.defaultExpectation.paramPtrs = &CartRepoMockDeleteAllFromCartParamPtrs{}
+	}
+	mmDeleteAllFromCart.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteAllFromCart.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteAllFromCart
+}
+
+// ExpectUserIdParam2 sets up expected param userId for cartRepo.DeleteAllFromCart
+func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) ExpectUserIdParam2(userId int64) *mCartRepoMockDeleteAllFromCart {
 	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
 		mmDeleteAllFromCart.mock.t.Fatalf("CartRepoMock.DeleteAllFromCart mock is already set by Set")
 	}
@@ -518,7 +576,7 @@ func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) ExpectUserIdParam1(us
 }
 
 // Inspect accepts an inspector function that has same arguments as the cartRepo.DeleteAllFromCart
-func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Inspect(f func(userId int64)) *mCartRepoMockDeleteAllFromCart {
+func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Inspect(f func(ctx context.Context, userId int64)) *mCartRepoMockDeleteAllFromCart {
 	if mmDeleteAllFromCart.mock.inspectFuncDeleteAllFromCart != nil {
 		mmDeleteAllFromCart.mock.t.Fatalf("Inspect function is already set for CartRepoMock.DeleteAllFromCart")
 	}
@@ -543,7 +601,7 @@ func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Return(err error) *Ca
 }
 
 // Set uses given function f to mock the cartRepo.DeleteAllFromCart method
-func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Set(f func(userId int64) (err error)) *CartRepoMock {
+func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Set(f func(ctx context.Context, userId int64) (err error)) *CartRepoMock {
 	if mmDeleteAllFromCart.defaultExpectation != nil {
 		mmDeleteAllFromCart.mock.t.Fatalf("Default expectation is already set for the cartRepo.DeleteAllFromCart method")
 	}
@@ -559,14 +617,14 @@ func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) Set(f func(userId int
 
 // When sets expectation for the cartRepo.DeleteAllFromCart which will trigger the result defined by the following
 // Then helper
-func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) When(userId int64) *CartRepoMockDeleteAllFromCartExpectation {
+func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) When(ctx context.Context, userId int64) *CartRepoMockDeleteAllFromCartExpectation {
 	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
 		mmDeleteAllFromCart.mock.t.Fatalf("CartRepoMock.DeleteAllFromCart mock is already set by Set")
 	}
 
 	expectation := &CartRepoMockDeleteAllFromCartExpectation{
 		mock:               mmDeleteAllFromCart.mock,
-		params:             &CartRepoMockDeleteAllFromCartParams{userId},
+		params:             &CartRepoMockDeleteAllFromCartParams{ctx, userId},
 		expectationOrigins: CartRepoMockDeleteAllFromCartExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmDeleteAllFromCart.expectations = append(mmDeleteAllFromCart.expectations, expectation)
@@ -601,17 +659,17 @@ func (mmDeleteAllFromCart *mCartRepoMockDeleteAllFromCart) invocationsDone() boo
 }
 
 // DeleteAllFromCart implements mm_service.cartRepo
-func (mmDeleteAllFromCart *CartRepoMock) DeleteAllFromCart(userId int64) (err error) {
+func (mmDeleteAllFromCart *CartRepoMock) DeleteAllFromCart(ctx context.Context, userId int64) (err error) {
 	mm_atomic.AddUint64(&mmDeleteAllFromCart.beforeDeleteAllFromCartCounter, 1)
 	defer mm_atomic.AddUint64(&mmDeleteAllFromCart.afterDeleteAllFromCartCounter, 1)
 
 	mmDeleteAllFromCart.t.Helper()
 
 	if mmDeleteAllFromCart.inspectFuncDeleteAllFromCart != nil {
-		mmDeleteAllFromCart.inspectFuncDeleteAllFromCart(userId)
+		mmDeleteAllFromCart.inspectFuncDeleteAllFromCart(ctx, userId)
 	}
 
-	mm_params := CartRepoMockDeleteAllFromCartParams{userId}
+	mm_params := CartRepoMockDeleteAllFromCartParams{ctx, userId}
 
 	// Record call args
 	mmDeleteAllFromCart.DeleteAllFromCartMock.mutex.Lock()
@@ -630,9 +688,14 @@ func (mmDeleteAllFromCart *CartRepoMock) DeleteAllFromCart(userId int64) (err er
 		mm_want := mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.params
 		mm_want_ptrs := mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.paramPtrs
 
-		mm_got := CartRepoMockDeleteAllFromCartParams{userId}
+		mm_got := CartRepoMockDeleteAllFromCartParams{ctx, userId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteAllFromCart.t.Errorf("CartRepoMock.DeleteAllFromCart got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
 				mmDeleteAllFromCart.t.Errorf("CartRepoMock.DeleteAllFromCart got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
@@ -651,9 +714,9 @@ func (mmDeleteAllFromCart *CartRepoMock) DeleteAllFromCart(userId int64) (err er
 		return (*mm_results).err
 	}
 	if mmDeleteAllFromCart.funcDeleteAllFromCart != nil {
-		return mmDeleteAllFromCart.funcDeleteAllFromCart(userId)
+		return mmDeleteAllFromCart.funcDeleteAllFromCart(ctx, userId)
 	}
-	mmDeleteAllFromCart.t.Fatalf("Unexpected call to CartRepoMock.DeleteAllFromCart. %v", userId)
+	mmDeleteAllFromCart.t.Fatalf("Unexpected call to CartRepoMock.DeleteAllFromCart. %v %v", ctx, userId)
 	return
 }
 
@@ -751,12 +814,14 @@ type CartRepoMockDeleteFromCartExpectation struct {
 
 // CartRepoMockDeleteFromCartParams contains parameters of the cartRepo.DeleteFromCart
 type CartRepoMockDeleteFromCartParams struct {
+	ctx    context.Context
 	userId int64
 	skuId  int64
 }
 
 // CartRepoMockDeleteFromCartParamPtrs contains pointers to parameters of the cartRepo.DeleteFromCart
 type CartRepoMockDeleteFromCartParamPtrs struct {
+	ctx    *context.Context
 	userId *int64
 	skuId  *int64
 }
@@ -769,6 +834,7 @@ type CartRepoMockDeleteFromCartResults struct {
 // CartRepoMockDeleteFromCartOrigins contains origins of expectations of the cartRepo.DeleteFromCart
 type CartRepoMockDeleteFromCartExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
 	originSkuId  string
 }
@@ -784,7 +850,7 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Optional() *mCartRepoMockDe
 }
 
 // Expect sets up expected params for cartRepo.DeleteFromCart
-func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Expect(userId int64, skuId int64) *mCartRepoMockDeleteFromCart {
+func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Expect(ctx context.Context, userId int64, skuId int64) *mCartRepoMockDeleteFromCart {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartRepoMock.DeleteFromCart mock is already set by Set")
 	}
@@ -797,7 +863,7 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Expect(userId int64, skuId 
 		mmDeleteFromCart.mock.t.Fatalf("CartRepoMock.DeleteFromCart mock is already set by ExpectParams functions")
 	}
 
-	mmDeleteFromCart.defaultExpectation.params = &CartRepoMockDeleteFromCartParams{userId, skuId}
+	mmDeleteFromCart.defaultExpectation.params = &CartRepoMockDeleteFromCartParams{ctx, userId, skuId}
 	mmDeleteFromCart.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmDeleteFromCart.expectations {
 		if minimock.Equal(e.params, mmDeleteFromCart.defaultExpectation.params) {
@@ -808,8 +874,31 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Expect(userId int64, skuId 
 	return mmDeleteFromCart
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartRepo.DeleteFromCart
-func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) ExpectUserIdParam1(userId int64) *mCartRepoMockDeleteFromCart {
+// ExpectCtxParam1 sets up expected param ctx for cartRepo.DeleteFromCart
+func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) ExpectCtxParam1(ctx context.Context) *mCartRepoMockDeleteFromCart {
+	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
+		mmDeleteFromCart.mock.t.Fatalf("CartRepoMock.DeleteFromCart mock is already set by Set")
+	}
+
+	if mmDeleteFromCart.defaultExpectation == nil {
+		mmDeleteFromCart.defaultExpectation = &CartRepoMockDeleteFromCartExpectation{}
+	}
+
+	if mmDeleteFromCart.defaultExpectation.params != nil {
+		mmDeleteFromCart.mock.t.Fatalf("CartRepoMock.DeleteFromCart mock is already set by Expect")
+	}
+
+	if mmDeleteFromCart.defaultExpectation.paramPtrs == nil {
+		mmDeleteFromCart.defaultExpectation.paramPtrs = &CartRepoMockDeleteFromCartParamPtrs{}
+	}
+	mmDeleteFromCart.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteFromCart.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteFromCart
+}
+
+// ExpectUserIdParam2 sets up expected param userId for cartRepo.DeleteFromCart
+func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) ExpectUserIdParam2(userId int64) *mCartRepoMockDeleteFromCart {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartRepoMock.DeleteFromCart mock is already set by Set")
 	}
@@ -831,8 +920,8 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) ExpectUserIdParam1(userId i
 	return mmDeleteFromCart
 }
 
-// ExpectSkuIdParam2 sets up expected param skuId for cartRepo.DeleteFromCart
-func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) ExpectSkuIdParam2(skuId int64) *mCartRepoMockDeleteFromCart {
+// ExpectSkuIdParam3 sets up expected param skuId for cartRepo.DeleteFromCart
+func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) ExpectSkuIdParam3(skuId int64) *mCartRepoMockDeleteFromCart {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartRepoMock.DeleteFromCart mock is already set by Set")
 	}
@@ -855,7 +944,7 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) ExpectSkuIdParam2(skuId int
 }
 
 // Inspect accepts an inspector function that has same arguments as the cartRepo.DeleteFromCart
-func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Inspect(f func(userId int64, skuId int64)) *mCartRepoMockDeleteFromCart {
+func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Inspect(f func(ctx context.Context, userId int64, skuId int64)) *mCartRepoMockDeleteFromCart {
 	if mmDeleteFromCart.mock.inspectFuncDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("Inspect function is already set for CartRepoMock.DeleteFromCart")
 	}
@@ -880,7 +969,7 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Return(err error) *CartRepo
 }
 
 // Set uses given function f to mock the cartRepo.DeleteFromCart method
-func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Set(f func(userId int64, skuId int64) (err error)) *CartRepoMock {
+func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Set(f func(ctx context.Context, userId int64, skuId int64) (err error)) *CartRepoMock {
 	if mmDeleteFromCart.defaultExpectation != nil {
 		mmDeleteFromCart.mock.t.Fatalf("Default expectation is already set for the cartRepo.DeleteFromCart method")
 	}
@@ -896,14 +985,14 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) Set(f func(userId int64, sk
 
 // When sets expectation for the cartRepo.DeleteFromCart which will trigger the result defined by the following
 // Then helper
-func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) When(userId int64, skuId int64) *CartRepoMockDeleteFromCartExpectation {
+func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) When(ctx context.Context, userId int64, skuId int64) *CartRepoMockDeleteFromCartExpectation {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartRepoMock.DeleteFromCart mock is already set by Set")
 	}
 
 	expectation := &CartRepoMockDeleteFromCartExpectation{
 		mock:               mmDeleteFromCart.mock,
-		params:             &CartRepoMockDeleteFromCartParams{userId, skuId},
+		params:             &CartRepoMockDeleteFromCartParams{ctx, userId, skuId},
 		expectationOrigins: CartRepoMockDeleteFromCartExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmDeleteFromCart.expectations = append(mmDeleteFromCart.expectations, expectation)
@@ -938,17 +1027,17 @@ func (mmDeleteFromCart *mCartRepoMockDeleteFromCart) invocationsDone() bool {
 }
 
 // DeleteFromCart implements mm_service.cartRepo
-func (mmDeleteFromCart *CartRepoMock) DeleteFromCart(userId int64, skuId int64) (err error) {
+func (mmDeleteFromCart *CartRepoMock) DeleteFromCart(ctx context.Context, userId int64, skuId int64) (err error) {
 	mm_atomic.AddUint64(&mmDeleteFromCart.beforeDeleteFromCartCounter, 1)
 	defer mm_atomic.AddUint64(&mmDeleteFromCart.afterDeleteFromCartCounter, 1)
 
 	mmDeleteFromCart.t.Helper()
 
 	if mmDeleteFromCart.inspectFuncDeleteFromCart != nil {
-		mmDeleteFromCart.inspectFuncDeleteFromCart(userId, skuId)
+		mmDeleteFromCart.inspectFuncDeleteFromCart(ctx, userId, skuId)
 	}
 
-	mm_params := CartRepoMockDeleteFromCartParams{userId, skuId}
+	mm_params := CartRepoMockDeleteFromCartParams{ctx, userId, skuId}
 
 	// Record call args
 	mmDeleteFromCart.DeleteFromCartMock.mutex.Lock()
@@ -967,9 +1056,14 @@ func (mmDeleteFromCart *CartRepoMock) DeleteFromCart(userId int64, skuId int64) 
 		mm_want := mmDeleteFromCart.DeleteFromCartMock.defaultExpectation.params
 		mm_want_ptrs := mmDeleteFromCart.DeleteFromCartMock.defaultExpectation.paramPtrs
 
-		mm_got := CartRepoMockDeleteFromCartParams{userId, skuId}
+		mm_got := CartRepoMockDeleteFromCartParams{ctx, userId, skuId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteFromCart.t.Errorf("CartRepoMock.DeleteFromCart got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteFromCart.DeleteFromCartMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
 				mmDeleteFromCart.t.Errorf("CartRepoMock.DeleteFromCart got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
@@ -993,9 +1087,9 @@ func (mmDeleteFromCart *CartRepoMock) DeleteFromCart(userId int64, skuId int64) 
 		return (*mm_results).err
 	}
 	if mmDeleteFromCart.funcDeleteFromCart != nil {
-		return mmDeleteFromCart.funcDeleteFromCart(userId, skuId)
+		return mmDeleteFromCart.funcDeleteFromCart(ctx, userId, skuId)
 	}
-	mmDeleteFromCart.t.Fatalf("Unexpected call to CartRepoMock.DeleteFromCart. %v %v", userId, skuId)
+	mmDeleteFromCart.t.Fatalf("Unexpected call to CartRepoMock.DeleteFromCart. %v %v %v", ctx, userId, skuId)
 	return
 }
 
@@ -1093,23 +1187,26 @@ type CartRepoMockGetItemsExpectation struct {
 
 // CartRepoMockGetItemsParams contains parameters of the cartRepo.GetItems
 type CartRepoMockGetItemsParams struct {
+	ctx    context.Context
 	userId int64
 }
 
 // CartRepoMockGetItemsParamPtrs contains pointers to parameters of the cartRepo.GetItems
 type CartRepoMockGetItemsParamPtrs struct {
+	ctx    *context.Context
 	userId *int64
 }
 
 // CartRepoMockGetItemsResults contains results of the cartRepo.GetItems
 type CartRepoMockGetItemsResults struct {
-	up1 *model.UserData
+	dp1 *model.DtoUserData
 	err error
 }
 
 // CartRepoMockGetItemsOrigins contains origins of expectations of the cartRepo.GetItems
 type CartRepoMockGetItemsExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
 }
 
@@ -1124,7 +1221,7 @@ func (mmGetItems *mCartRepoMockGetItems) Optional() *mCartRepoMockGetItems {
 }
 
 // Expect sets up expected params for cartRepo.GetItems
-func (mmGetItems *mCartRepoMockGetItems) Expect(userId int64) *mCartRepoMockGetItems {
+func (mmGetItems *mCartRepoMockGetItems) Expect(ctx context.Context, userId int64) *mCartRepoMockGetItems {
 	if mmGetItems.mock.funcGetItems != nil {
 		mmGetItems.mock.t.Fatalf("CartRepoMock.GetItems mock is already set by Set")
 	}
@@ -1137,7 +1234,7 @@ func (mmGetItems *mCartRepoMockGetItems) Expect(userId int64) *mCartRepoMockGetI
 		mmGetItems.mock.t.Fatalf("CartRepoMock.GetItems mock is already set by ExpectParams functions")
 	}
 
-	mmGetItems.defaultExpectation.params = &CartRepoMockGetItemsParams{userId}
+	mmGetItems.defaultExpectation.params = &CartRepoMockGetItemsParams{ctx, userId}
 	mmGetItems.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmGetItems.expectations {
 		if minimock.Equal(e.params, mmGetItems.defaultExpectation.params) {
@@ -1148,8 +1245,31 @@ func (mmGetItems *mCartRepoMockGetItems) Expect(userId int64) *mCartRepoMockGetI
 	return mmGetItems
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartRepo.GetItems
-func (mmGetItems *mCartRepoMockGetItems) ExpectUserIdParam1(userId int64) *mCartRepoMockGetItems {
+// ExpectCtxParam1 sets up expected param ctx for cartRepo.GetItems
+func (mmGetItems *mCartRepoMockGetItems) ExpectCtxParam1(ctx context.Context) *mCartRepoMockGetItems {
+	if mmGetItems.mock.funcGetItems != nil {
+		mmGetItems.mock.t.Fatalf("CartRepoMock.GetItems mock is already set by Set")
+	}
+
+	if mmGetItems.defaultExpectation == nil {
+		mmGetItems.defaultExpectation = &CartRepoMockGetItemsExpectation{}
+	}
+
+	if mmGetItems.defaultExpectation.params != nil {
+		mmGetItems.mock.t.Fatalf("CartRepoMock.GetItems mock is already set by Expect")
+	}
+
+	if mmGetItems.defaultExpectation.paramPtrs == nil {
+		mmGetItems.defaultExpectation.paramPtrs = &CartRepoMockGetItemsParamPtrs{}
+	}
+	mmGetItems.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetItems.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetItems
+}
+
+// ExpectUserIdParam2 sets up expected param userId for cartRepo.GetItems
+func (mmGetItems *mCartRepoMockGetItems) ExpectUserIdParam2(userId int64) *mCartRepoMockGetItems {
 	if mmGetItems.mock.funcGetItems != nil {
 		mmGetItems.mock.t.Fatalf("CartRepoMock.GetItems mock is already set by Set")
 	}
@@ -1172,7 +1292,7 @@ func (mmGetItems *mCartRepoMockGetItems) ExpectUserIdParam1(userId int64) *mCart
 }
 
 // Inspect accepts an inspector function that has same arguments as the cartRepo.GetItems
-func (mmGetItems *mCartRepoMockGetItems) Inspect(f func(userId int64)) *mCartRepoMockGetItems {
+func (mmGetItems *mCartRepoMockGetItems) Inspect(f func(ctx context.Context, userId int64)) *mCartRepoMockGetItems {
 	if mmGetItems.mock.inspectFuncGetItems != nil {
 		mmGetItems.mock.t.Fatalf("Inspect function is already set for CartRepoMock.GetItems")
 	}
@@ -1183,7 +1303,7 @@ func (mmGetItems *mCartRepoMockGetItems) Inspect(f func(userId int64)) *mCartRep
 }
 
 // Return sets up results that will be returned by cartRepo.GetItems
-func (mmGetItems *mCartRepoMockGetItems) Return(up1 *model.UserData, err error) *CartRepoMock {
+func (mmGetItems *mCartRepoMockGetItems) Return(dp1 *model.DtoUserData, err error) *CartRepoMock {
 	if mmGetItems.mock.funcGetItems != nil {
 		mmGetItems.mock.t.Fatalf("CartRepoMock.GetItems mock is already set by Set")
 	}
@@ -1191,13 +1311,13 @@ func (mmGetItems *mCartRepoMockGetItems) Return(up1 *model.UserData, err error) 
 	if mmGetItems.defaultExpectation == nil {
 		mmGetItems.defaultExpectation = &CartRepoMockGetItemsExpectation{mock: mmGetItems.mock}
 	}
-	mmGetItems.defaultExpectation.results = &CartRepoMockGetItemsResults{up1, err}
+	mmGetItems.defaultExpectation.results = &CartRepoMockGetItemsResults{dp1, err}
 	mmGetItems.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
 	return mmGetItems.mock
 }
 
 // Set uses given function f to mock the cartRepo.GetItems method
-func (mmGetItems *mCartRepoMockGetItems) Set(f func(userId int64) (up1 *model.UserData, err error)) *CartRepoMock {
+func (mmGetItems *mCartRepoMockGetItems) Set(f func(ctx context.Context, userId int64) (dp1 *model.DtoUserData, err error)) *CartRepoMock {
 	if mmGetItems.defaultExpectation != nil {
 		mmGetItems.mock.t.Fatalf("Default expectation is already set for the cartRepo.GetItems method")
 	}
@@ -1213,14 +1333,14 @@ func (mmGetItems *mCartRepoMockGetItems) Set(f func(userId int64) (up1 *model.Us
 
 // When sets expectation for the cartRepo.GetItems which will trigger the result defined by the following
 // Then helper
-func (mmGetItems *mCartRepoMockGetItems) When(userId int64) *CartRepoMockGetItemsExpectation {
+func (mmGetItems *mCartRepoMockGetItems) When(ctx context.Context, userId int64) *CartRepoMockGetItemsExpectation {
 	if mmGetItems.mock.funcGetItems != nil {
 		mmGetItems.mock.t.Fatalf("CartRepoMock.GetItems mock is already set by Set")
 	}
 
 	expectation := &CartRepoMockGetItemsExpectation{
 		mock:               mmGetItems.mock,
-		params:             &CartRepoMockGetItemsParams{userId},
+		params:             &CartRepoMockGetItemsParams{ctx, userId},
 		expectationOrigins: CartRepoMockGetItemsExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmGetItems.expectations = append(mmGetItems.expectations, expectation)
@@ -1228,8 +1348,8 @@ func (mmGetItems *mCartRepoMockGetItems) When(userId int64) *CartRepoMockGetItem
 }
 
 // Then sets up cartRepo.GetItems return parameters for the expectation previously defined by the When method
-func (e *CartRepoMockGetItemsExpectation) Then(up1 *model.UserData, err error) *CartRepoMock {
-	e.results = &CartRepoMockGetItemsResults{up1, err}
+func (e *CartRepoMockGetItemsExpectation) Then(dp1 *model.DtoUserData, err error) *CartRepoMock {
+	e.results = &CartRepoMockGetItemsResults{dp1, err}
 	return e.mock
 }
 
@@ -1255,17 +1375,17 @@ func (mmGetItems *mCartRepoMockGetItems) invocationsDone() bool {
 }
 
 // GetItems implements mm_service.cartRepo
-func (mmGetItems *CartRepoMock) GetItems(userId int64) (up1 *model.UserData, err error) {
+func (mmGetItems *CartRepoMock) GetItems(ctx context.Context, userId int64) (dp1 *model.DtoUserData, err error) {
 	mm_atomic.AddUint64(&mmGetItems.beforeGetItemsCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetItems.afterGetItemsCounter, 1)
 
 	mmGetItems.t.Helper()
 
 	if mmGetItems.inspectFuncGetItems != nil {
-		mmGetItems.inspectFuncGetItems(userId)
+		mmGetItems.inspectFuncGetItems(ctx, userId)
 	}
 
-	mm_params := CartRepoMockGetItemsParams{userId}
+	mm_params := CartRepoMockGetItemsParams{ctx, userId}
 
 	// Record call args
 	mmGetItems.GetItemsMock.mutex.Lock()
@@ -1275,7 +1395,7 @@ func (mmGetItems *CartRepoMock) GetItems(userId int64) (up1 *model.UserData, err
 	for _, e := range mmGetItems.GetItemsMock.expectations {
 		if minimock.Equal(*e.params, mm_params) {
 			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.up1, e.results.err
+			return e.results.dp1, e.results.err
 		}
 	}
 
@@ -1284,9 +1404,14 @@ func (mmGetItems *CartRepoMock) GetItems(userId int64) (up1 *model.UserData, err
 		mm_want := mmGetItems.GetItemsMock.defaultExpectation.params
 		mm_want_ptrs := mmGetItems.GetItemsMock.defaultExpectation.paramPtrs
 
-		mm_got := CartRepoMockGetItemsParams{userId}
+		mm_got := CartRepoMockGetItemsParams{ctx, userId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetItems.t.Errorf("CartRepoMock.GetItems got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetItems.GetItemsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
 				mmGetItems.t.Errorf("CartRepoMock.GetItems got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
@@ -1302,12 +1427,12 @@ func (mmGetItems *CartRepoMock) GetItems(userId int64) (up1 *model.UserData, err
 		if mm_results == nil {
 			mmGetItems.t.Fatal("No results are set for the CartRepoMock.GetItems")
 		}
-		return (*mm_results).up1, (*mm_results).err
+		return (*mm_results).dp1, (*mm_results).err
 	}
 	if mmGetItems.funcGetItems != nil {
-		return mmGetItems.funcGetItems(userId)
+		return mmGetItems.funcGetItems(ctx, userId)
 	}
-	mmGetItems.t.Fatalf("Unexpected call to CartRepoMock.GetItems. %v", userId)
+	mmGetItems.t.Fatalf("Unexpected call to CartRepoMock.GetItems. %v %v", ctx, userId)
 	return
 }
 

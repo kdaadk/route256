@@ -1,38 +1,41 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"route256/cart/internal/model"
+	"sync"
 )
 
 type CartRepository struct {
-	carts map[int64]*model.UserData
+	carts map[int64]*model.DtoUserData
+	mu    sync.RWMutex
 }
 
 func NewCartRepository() *CartRepository {
 	return &CartRepository{
-		carts: make(map[int64]*model.UserData),
+		carts: make(map[int64]*model.DtoUserData),
+		mu:    sync.RWMutex{},
 	}
 }
 
-func (r *CartRepository) AddItemToCart(userId int64, addItem *model.Item) error {
+func (r *CartRepository) AddItemToCart(ctx context.Context, userId int64, addItem *model.DtoItem) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	userData, ok := r.carts[userId]
 	if !ok {
-		userData = &model.UserData{
-			Items: map[int64]*model.Item{
+		userData = &model.DtoUserData{
+			Items: map[int64]*model.DtoItem{
 				addItem.SkuId: addItem,
 			},
-			TotalPrice: addItem.Price * uint32(addItem.Count),
 		}
 	} else {
-		userData.TotalPrice += addItem.Price
 		gotItem, ok := userData.Items[addItem.SkuId]
 		if !ok {
 			userData.Items[addItem.SkuId] = addItem
 		} else {
-			gotItem.Price += addItem.Price
 			gotItem.Count += addItem.Count
-
 			userData.Items[addItem.SkuId] = gotItem
 		}
 	}
@@ -41,47 +44,47 @@ func (r *CartRepository) AddItemToCart(userId int64, addItem *model.Item) error 
 	return nil
 }
 
-func (r *CartRepository) DeleteFromCart(userId int64, skuId int64) error {
+func (r *CartRepository) DeleteFromCart(ctx context.Context, userId int64, skuId int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	userData, ok := r.carts[userId]
 	if !ok {
 		return fmt.Errorf("Not found user %d", userId)
 	}
 
-	item, ok := userData.Items[skuId]
+	_, ok = userData.Items[skuId]
 	if !ok {
 		return fmt.Errorf("Not found product %d", skuId)
 	}
 
-	deletedTotalPrice := item.Price * uint32(item.Count)
-	if deletedTotalPrice > userData.TotalPrice {
-		return fmt.Errorf("Wrong total price, before: %d, subtract: %d", userData.TotalPrice, deletedTotalPrice)
-	}
-
 	delete(r.carts[userId].Items, skuId)
-	r.carts[userId].TotalPrice = userData.TotalPrice - deletedTotalPrice
 
 	return nil
 }
 
-func (r *CartRepository) DeleteAllFromCart(userId int64) error {
+func (r *CartRepository) DeleteAllFromCart(ctx context.Context, userId int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	delete(r.carts, userId)
 
-	r.carts[userId] = &model.UserData{
-		Items:      map[int64]*model.Item{},
-		TotalPrice: 0,
+	r.carts[userId] = &model.DtoUserData{
+		Items: map[int64]*model.DtoItem{},
 	}
 
 	return nil
 }
 
-func (r *CartRepository) GetItems(userId int64) (*model.UserData, error) {
+func (r *CartRepository) GetItems(ctx context.Context, userId int64) (*model.DtoUserData, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	userData, ok := r.carts[userId]
 	if !ok {
-		return &model.UserData{
-			Items:      map[int64]*model.Item{},
-			TotalPrice: 0,
+		return &model.DtoUserData{
+			Items: map[int64]*model.DtoItem{},
 		}, nil
-		//return &model.UserData{}, fmt.Errorf("No data for user %d", userId)
 	}
 
 	return userData, nil

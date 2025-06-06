@@ -11,6 +11,10 @@ type UserData struct {
 	TotalPrice uint32
 }
 
+type DtoUserData struct {
+	Items map[int64]*DtoItem
+}
+
 type AddToCartRequest struct {
 	Count uint16 `json:"count" validate:"required,min=1"`
 }
@@ -25,6 +29,11 @@ type Item struct {
 	Name  string `json:"name"`
 	Count uint16 `json:"count"`
 	Price uint32 `json:"price"`
+}
+
+type DtoItem struct {
+	SkuId int64  `json:"sku_id"`
+	Count uint16 `json:"count"`
 }
 
 type Product struct {

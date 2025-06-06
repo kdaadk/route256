@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,14 +13,14 @@ import (
 )
 
 type cartService interface {
-	AddItemToCart(userId, skuId int64, count uint32) error
-	DeleteFromCart(userId int64, skuId int64) error
-	GetItems(userId int64) (*model.UserData, error)
+	AddItemToCart(ctx context.Context, userId, skuId int64, count uint32) error
+	DeleteFromCart(ctx context.Context, userId int64, skuId int64) error
+	GetItems(ctx context.Context, userId int64) (*model.UserData, error)
 
-	PayOrder(orderId int64) error
-	CancelOrder(orderId int64) error
+	PayOrder(ctx context.Context, orderId int64) error
+	CancelOrder(ctx context.Context, orderId int64) error
 
-	Checkout(userId int64) (int64, error)
+	Checkout(ctx context.Context, userId int64) (int64, error)
 }
 
 type Handler struct {
@@ -60,6 +61,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 }
 
 func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	vars := mux.Vars(r)
 	rawUserId := vars["userId"]
 	rawSkuId := vars["skuId"]
@@ -76,7 +78,7 @@ func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err = h.service.DeleteFromCart(userId, skuId); err != nil {
+	if err = h.service.DeleteFromCart(ctx, userId, skuId); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -85,6 +87,7 @@ func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) GetAllFromCartHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	vars := mux.Vars(r)
 	rawUserId := vars["userId"]
 
@@ -94,7 +97,7 @@ func (h *Handler) GetAllFromCartHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	userData, err := h.service.GetItems(userId)
+	userData, err := h.service.GetItems(ctx, userId)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -119,6 +122,7 @@ func (h *Handler) GetAllFromCartHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) AddToCartHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	vars := mux.Vars(r)
 	rawUserId := vars["userId"]
 	rawSkuId := vars["skuId"]
@@ -144,7 +148,7 @@ func (h *Handler) AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.AddItemToCart(userId, skuId, uint32(req.Count))
+	err = h.service.AddItemToCart(ctx, userId, skuId, uint32(req.Count))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -154,6 +158,7 @@ func (h *Handler) AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PayOrderHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	vars := mux.Vars(r)
 	rawOrderId := vars["orderId"]
 
@@ -163,7 +168,7 @@ func (h *Handler) PayOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.PayOrder(orderId)
+	err = h.service.PayOrder(ctx, orderId)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -173,6 +178,7 @@ func (h *Handler) PayOrderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CancelOrderHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	vars := mux.Vars(r)
 	rawOrderId := vars["orderId"]
 
@@ -182,7 +188,7 @@ func (h *Handler) CancelOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.service.CancelOrder(orderId)
+	err = h.service.CancelOrder(ctx, orderId)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -192,6 +198,7 @@ func (h *Handler) CancelOrderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CheckoutHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	vars := mux.Vars(r)
 	rawUserId := vars["user"]
 
@@ -201,7 +208,7 @@ func (h *Handler) CheckoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orderId, err := h.service.Checkout(userId)
+	orderId, err := h.service.Checkout(ctx, userId)
 	if err != nil {
 		writeErr(w, err)
 		return

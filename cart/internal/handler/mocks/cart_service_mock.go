@@ -5,6 +5,7 @@ package mocks
 //go:generate minimock -i route256/cart/internal/handler.cartService -o cart_service_mock.go -n CartServiceMock -p mocks
 
 import (
+	"context"
 	"route256/cart/internal/model"
 	"sync"
 	mm_atomic "sync/atomic"
@@ -18,40 +19,47 @@ type CartServiceMock struct {
 	t          minimock.Tester
 	finishOnce sync.Once
 
-	funcAddItemToCart          func(userId int64, item *model.Item) (err error)
+	funcAddItemToCart          func(ctx context.Context, userId int64, skuId int64, count uint32) (err error)
 	funcAddItemToCartOrigin    string
-	inspectFuncAddItemToCart   func(userId int64, item *model.Item)
+	inspectFuncAddItemToCart   func(ctx context.Context, userId int64, skuId int64, count uint32)
 	afterAddItemToCartCounter  uint64
 	beforeAddItemToCartCounter uint64
 	AddItemToCartMock          mCartServiceMockAddItemToCart
 
-	funcDeleteAllFromCart          func(userId int64) (err error)
-	funcDeleteAllFromCartOrigin    string
-	inspectFuncDeleteAllFromCart   func(userId int64)
-	afterDeleteAllFromCartCounter  uint64
-	beforeDeleteAllFromCartCounter uint64
-	DeleteAllFromCartMock          mCartServiceMockDeleteAllFromCart
+	funcCancelOrder          func(ctx context.Context, orderId int64) (err error)
+	funcCancelOrderOrigin    string
+	inspectFuncCancelOrder   func(ctx context.Context, orderId int64)
+	afterCancelOrderCounter  uint64
+	beforeCancelOrderCounter uint64
+	CancelOrderMock          mCartServiceMockCancelOrder
 
-	funcDeleteFromCart          func(userId int64, skuId int64) (err error)
+	funcCheckout          func(ctx context.Context, userId int64) (i1 int64, err error)
+	funcCheckoutOrigin    string
+	inspectFuncCheckout   func(ctx context.Context, userId int64)
+	afterCheckoutCounter  uint64
+	beforeCheckoutCounter uint64
+	CheckoutMock          mCartServiceMockCheckout
+
+	funcDeleteFromCart          func(ctx context.Context, userId int64, skuId int64) (err error)
 	funcDeleteFromCartOrigin    string
-	inspectFuncDeleteFromCart   func(userId int64, skuId int64)
+	inspectFuncDeleteFromCart   func(ctx context.Context, userId int64, skuId int64)
 	afterDeleteFromCartCounter  uint64
 	beforeDeleteFromCartCounter uint64
 	DeleteFromCartMock          mCartServiceMockDeleteFromCart
 
-	funcGetItems          func(userId int64) (up1 *model.UserData, err error)
+	funcGetItems          func(ctx context.Context, userId int64) (up1 *model.UserData, err error)
 	funcGetItemsOrigin    string
-	inspectFuncGetItems   func(userId int64)
+	inspectFuncGetItems   func(ctx context.Context, userId int64)
 	afterGetItemsCounter  uint64
 	beforeGetItemsCounter uint64
 	GetItemsMock          mCartServiceMockGetItems
 
-	funcGetProduct          func(productId int64) (pp1 *model.Product, err error)
-	funcGetProductOrigin    string
-	inspectFuncGetProduct   func(productId int64)
-	afterGetProductCounter  uint64
-	beforeGetProductCounter uint64
-	GetProductMock          mCartServiceMockGetProduct
+	funcPayOrder          func(ctx context.Context, orderId int64) (err error)
+	funcPayOrderOrigin    string
+	inspectFuncPayOrder   func(ctx context.Context, orderId int64)
+	afterPayOrderCounter  uint64
+	beforePayOrderCounter uint64
+	PayOrderMock          mCartServiceMockPayOrder
 }
 
 // NewCartServiceMock returns a mock for mm_handler.cartService
@@ -65,8 +73,11 @@ func NewCartServiceMock(t minimock.Tester) *CartServiceMock {
 	m.AddItemToCartMock = mCartServiceMockAddItemToCart{mock: m}
 	m.AddItemToCartMock.callArgs = []*CartServiceMockAddItemToCartParams{}
 
-	m.DeleteAllFromCartMock = mCartServiceMockDeleteAllFromCart{mock: m}
-	m.DeleteAllFromCartMock.callArgs = []*CartServiceMockDeleteAllFromCartParams{}
+	m.CancelOrderMock = mCartServiceMockCancelOrder{mock: m}
+	m.CancelOrderMock.callArgs = []*CartServiceMockCancelOrderParams{}
+
+	m.CheckoutMock = mCartServiceMockCheckout{mock: m}
+	m.CheckoutMock.callArgs = []*CartServiceMockCheckoutParams{}
 
 	m.DeleteFromCartMock = mCartServiceMockDeleteFromCart{mock: m}
 	m.DeleteFromCartMock.callArgs = []*CartServiceMockDeleteFromCartParams{}
@@ -74,8 +85,8 @@ func NewCartServiceMock(t minimock.Tester) *CartServiceMock {
 	m.GetItemsMock = mCartServiceMockGetItems{mock: m}
 	m.GetItemsMock.callArgs = []*CartServiceMockGetItemsParams{}
 
-	m.GetProductMock = mCartServiceMockGetProduct{mock: m}
-	m.GetProductMock.callArgs = []*CartServiceMockGetProductParams{}
+	m.PayOrderMock = mCartServiceMockPayOrder{mock: m}
+	m.PayOrderMock.callArgs = []*CartServiceMockPayOrderParams{}
 
 	t.Cleanup(m.MinimockFinish)
 
@@ -108,14 +119,18 @@ type CartServiceMockAddItemToCartExpectation struct {
 
 // CartServiceMockAddItemToCartParams contains parameters of the cartService.AddItemToCart
 type CartServiceMockAddItemToCartParams struct {
+	ctx    context.Context
 	userId int64
-	item   *model.Item
+	skuId  int64
+	count  uint32
 }
 
 // CartServiceMockAddItemToCartParamPtrs contains pointers to parameters of the cartService.AddItemToCart
 type CartServiceMockAddItemToCartParamPtrs struct {
+	ctx    *context.Context
 	userId *int64
-	item   **model.Item
+	skuId  *int64
+	count  *uint32
 }
 
 // CartServiceMockAddItemToCartResults contains results of the cartService.AddItemToCart
@@ -126,8 +141,10 @@ type CartServiceMockAddItemToCartResults struct {
 // CartServiceMockAddItemToCartOrigins contains origins of expectations of the cartService.AddItemToCart
 type CartServiceMockAddItemToCartExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
-	originItem   string
+	originSkuId  string
+	originCount  string
 }
 
 // Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
@@ -141,7 +158,7 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) Optional() *mCartServiceMo
 }
 
 // Expect sets up expected params for cartService.AddItemToCart
-func (mmAddItemToCart *mCartServiceMockAddItemToCart) Expect(userId int64, item *model.Item) *mCartServiceMockAddItemToCart {
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) Expect(ctx context.Context, userId int64, skuId int64, count uint32) *mCartServiceMockAddItemToCart {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Set")
 	}
@@ -154,7 +171,7 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) Expect(userId int64, item 
 		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by ExpectParams functions")
 	}
 
-	mmAddItemToCart.defaultExpectation.params = &CartServiceMockAddItemToCartParams{userId, item}
+	mmAddItemToCart.defaultExpectation.params = &CartServiceMockAddItemToCartParams{ctx, userId, skuId, count}
 	mmAddItemToCart.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmAddItemToCart.expectations {
 		if minimock.Equal(e.params, mmAddItemToCart.defaultExpectation.params) {
@@ -165,8 +182,31 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) Expect(userId int64, item 
 	return mmAddItemToCart
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartService.AddItemToCart
-func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectUserIdParam1(userId int64) *mCartServiceMockAddItemToCart {
+// ExpectCtxParam1 sets up expected param ctx for cartService.AddItemToCart
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectCtxParam1(ctx context.Context) *mCartServiceMockAddItemToCart {
+	if mmAddItemToCart.mock.funcAddItemToCart != nil {
+		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Set")
+	}
+
+	if mmAddItemToCart.defaultExpectation == nil {
+		mmAddItemToCart.defaultExpectation = &CartServiceMockAddItemToCartExpectation{}
+	}
+
+	if mmAddItemToCart.defaultExpectation.params != nil {
+		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Expect")
+	}
+
+	if mmAddItemToCart.defaultExpectation.paramPtrs == nil {
+		mmAddItemToCart.defaultExpectation.paramPtrs = &CartServiceMockAddItemToCartParamPtrs{}
+	}
+	mmAddItemToCart.defaultExpectation.paramPtrs.ctx = &ctx
+	mmAddItemToCart.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmAddItemToCart
+}
+
+// ExpectUserIdParam2 sets up expected param userId for cartService.AddItemToCart
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectUserIdParam2(userId int64) *mCartServiceMockAddItemToCart {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Set")
 	}
@@ -188,8 +228,8 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectUserIdParam1(userId 
 	return mmAddItemToCart
 }
 
-// ExpectItemParam2 sets up expected param item for cartService.AddItemToCart
-func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectItemParam2(item *model.Item) *mCartServiceMockAddItemToCart {
+// ExpectSkuIdParam3 sets up expected param skuId for cartService.AddItemToCart
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectSkuIdParam3(skuId int64) *mCartServiceMockAddItemToCart {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Set")
 	}
@@ -205,14 +245,37 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectItemParam2(item *mod
 	if mmAddItemToCart.defaultExpectation.paramPtrs == nil {
 		mmAddItemToCart.defaultExpectation.paramPtrs = &CartServiceMockAddItemToCartParamPtrs{}
 	}
-	mmAddItemToCart.defaultExpectation.paramPtrs.item = &item
-	mmAddItemToCart.defaultExpectation.expectationOrigins.originItem = minimock.CallerInfo(1)
+	mmAddItemToCart.defaultExpectation.paramPtrs.skuId = &skuId
+	mmAddItemToCart.defaultExpectation.expectationOrigins.originSkuId = minimock.CallerInfo(1)
+
+	return mmAddItemToCart
+}
+
+// ExpectCountParam4 sets up expected param count for cartService.AddItemToCart
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) ExpectCountParam4(count uint32) *mCartServiceMockAddItemToCart {
+	if mmAddItemToCart.mock.funcAddItemToCart != nil {
+		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Set")
+	}
+
+	if mmAddItemToCart.defaultExpectation == nil {
+		mmAddItemToCart.defaultExpectation = &CartServiceMockAddItemToCartExpectation{}
+	}
+
+	if mmAddItemToCart.defaultExpectation.params != nil {
+		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Expect")
+	}
+
+	if mmAddItemToCart.defaultExpectation.paramPtrs == nil {
+		mmAddItemToCart.defaultExpectation.paramPtrs = &CartServiceMockAddItemToCartParamPtrs{}
+	}
+	mmAddItemToCart.defaultExpectation.paramPtrs.count = &count
+	mmAddItemToCart.defaultExpectation.expectationOrigins.originCount = minimock.CallerInfo(1)
 
 	return mmAddItemToCart
 }
 
 // Inspect accepts an inspector function that has same arguments as the cartService.AddItemToCart
-func (mmAddItemToCart *mCartServiceMockAddItemToCart) Inspect(f func(userId int64, item *model.Item)) *mCartServiceMockAddItemToCart {
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) Inspect(f func(ctx context.Context, userId int64, skuId int64, count uint32)) *mCartServiceMockAddItemToCart {
 	if mmAddItemToCart.mock.inspectFuncAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("Inspect function is already set for CartServiceMock.AddItemToCart")
 	}
@@ -237,7 +300,7 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) Return(err error) *CartSer
 }
 
 // Set uses given function f to mock the cartService.AddItemToCart method
-func (mmAddItemToCart *mCartServiceMockAddItemToCart) Set(f func(userId int64, item *model.Item) (err error)) *CartServiceMock {
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) Set(f func(ctx context.Context, userId int64, skuId int64, count uint32) (err error)) *CartServiceMock {
 	if mmAddItemToCart.defaultExpectation != nil {
 		mmAddItemToCart.mock.t.Fatalf("Default expectation is already set for the cartService.AddItemToCart method")
 	}
@@ -253,14 +316,14 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) Set(f func(userId int64, i
 
 // When sets expectation for the cartService.AddItemToCart which will trigger the result defined by the following
 // Then helper
-func (mmAddItemToCart *mCartServiceMockAddItemToCart) When(userId int64, item *model.Item) *CartServiceMockAddItemToCartExpectation {
+func (mmAddItemToCart *mCartServiceMockAddItemToCart) When(ctx context.Context, userId int64, skuId int64, count uint32) *CartServiceMockAddItemToCartExpectation {
 	if mmAddItemToCart.mock.funcAddItemToCart != nil {
 		mmAddItemToCart.mock.t.Fatalf("CartServiceMock.AddItemToCart mock is already set by Set")
 	}
 
 	expectation := &CartServiceMockAddItemToCartExpectation{
 		mock:               mmAddItemToCart.mock,
-		params:             &CartServiceMockAddItemToCartParams{userId, item},
+		params:             &CartServiceMockAddItemToCartParams{ctx, userId, skuId, count},
 		expectationOrigins: CartServiceMockAddItemToCartExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmAddItemToCart.expectations = append(mmAddItemToCart.expectations, expectation)
@@ -295,17 +358,17 @@ func (mmAddItemToCart *mCartServiceMockAddItemToCart) invocationsDone() bool {
 }
 
 // AddItemToCart implements mm_handler.cartService
-func (mmAddItemToCart *CartServiceMock) AddItemToCart(userId int64, item *model.Item) (err error) {
+func (mmAddItemToCart *CartServiceMock) AddItemToCart(ctx context.Context, userId int64, skuId int64, count uint32) (err error) {
 	mm_atomic.AddUint64(&mmAddItemToCart.beforeAddItemToCartCounter, 1)
 	defer mm_atomic.AddUint64(&mmAddItemToCart.afterAddItemToCartCounter, 1)
 
 	mmAddItemToCart.t.Helper()
 
 	if mmAddItemToCart.inspectFuncAddItemToCart != nil {
-		mmAddItemToCart.inspectFuncAddItemToCart(userId, item)
+		mmAddItemToCart.inspectFuncAddItemToCart(ctx, userId, skuId, count)
 	}
 
-	mm_params := CartServiceMockAddItemToCartParams{userId, item}
+	mm_params := CartServiceMockAddItemToCartParams{ctx, userId, skuId, count}
 
 	// Record call args
 	mmAddItemToCart.AddItemToCartMock.mutex.Lock()
@@ -324,18 +387,28 @@ func (mmAddItemToCart *CartServiceMock) AddItemToCart(userId int64, item *model.
 		mm_want := mmAddItemToCart.AddItemToCartMock.defaultExpectation.params
 		mm_want_ptrs := mmAddItemToCart.AddItemToCartMock.defaultExpectation.paramPtrs
 
-		mm_got := CartServiceMockAddItemToCartParams{userId, item}
+		mm_got := CartServiceMockAddItemToCartParams{ctx, userId, skuId, count}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmAddItemToCart.t.Errorf("CartServiceMock.AddItemToCart got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAddItemToCart.AddItemToCartMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
 				mmAddItemToCart.t.Errorf("CartServiceMock.AddItemToCart got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
 					mmAddItemToCart.AddItemToCartMock.defaultExpectation.expectationOrigins.originUserId, *mm_want_ptrs.userId, mm_got.userId, minimock.Diff(*mm_want_ptrs.userId, mm_got.userId))
 			}
 
-			if mm_want_ptrs.item != nil && !minimock.Equal(*mm_want_ptrs.item, mm_got.item) {
-				mmAddItemToCart.t.Errorf("CartServiceMock.AddItemToCart got unexpected parameter item, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-					mmAddItemToCart.AddItemToCartMock.defaultExpectation.expectationOrigins.originItem, *mm_want_ptrs.item, mm_got.item, minimock.Diff(*mm_want_ptrs.item, mm_got.item))
+			if mm_want_ptrs.skuId != nil && !minimock.Equal(*mm_want_ptrs.skuId, mm_got.skuId) {
+				mmAddItemToCart.t.Errorf("CartServiceMock.AddItemToCart got unexpected parameter skuId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAddItemToCart.AddItemToCartMock.defaultExpectation.expectationOrigins.originSkuId, *mm_want_ptrs.skuId, mm_got.skuId, minimock.Diff(*mm_want_ptrs.skuId, mm_got.skuId))
+			}
+
+			if mm_want_ptrs.count != nil && !minimock.Equal(*mm_want_ptrs.count, mm_got.count) {
+				mmAddItemToCart.t.Errorf("CartServiceMock.AddItemToCart got unexpected parameter count, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmAddItemToCart.AddItemToCartMock.defaultExpectation.expectationOrigins.originCount, *mm_want_ptrs.count, mm_got.count, minimock.Diff(*mm_want_ptrs.count, mm_got.count))
 			}
 
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
@@ -350,9 +423,9 @@ func (mmAddItemToCart *CartServiceMock) AddItemToCart(userId int64, item *model.
 		return (*mm_results).err
 	}
 	if mmAddItemToCart.funcAddItemToCart != nil {
-		return mmAddItemToCart.funcAddItemToCart(userId, item)
+		return mmAddItemToCart.funcAddItemToCart(ctx, userId, skuId, count)
 	}
-	mmAddItemToCart.t.Fatalf("Unexpected call to CartServiceMock.AddItemToCart. %v %v", userId, item)
+	mmAddItemToCart.t.Fatalf("Unexpected call to CartServiceMock.AddItemToCart. %v %v %v %v", ctx, userId, skuId, count)
 	return
 }
 
@@ -424,48 +497,394 @@ func (m *CartServiceMock) MinimockAddItemToCartInspect() {
 	}
 }
 
-type mCartServiceMockDeleteAllFromCart struct {
+type mCartServiceMockCancelOrder struct {
 	optional           bool
 	mock               *CartServiceMock
-	defaultExpectation *CartServiceMockDeleteAllFromCartExpectation
-	expectations       []*CartServiceMockDeleteAllFromCartExpectation
+	defaultExpectation *CartServiceMockCancelOrderExpectation
+	expectations       []*CartServiceMockCancelOrderExpectation
 
-	callArgs []*CartServiceMockDeleteAllFromCartParams
+	callArgs []*CartServiceMockCancelOrderParams
 	mutex    sync.RWMutex
 
 	expectedInvocations       uint64
 	expectedInvocationsOrigin string
 }
 
-// CartServiceMockDeleteAllFromCartExpectation specifies expectation struct of the cartService.DeleteAllFromCart
-type CartServiceMockDeleteAllFromCartExpectation struct {
+// CartServiceMockCancelOrderExpectation specifies expectation struct of the cartService.CancelOrder
+type CartServiceMockCancelOrderExpectation struct {
 	mock               *CartServiceMock
-	params             *CartServiceMockDeleteAllFromCartParams
-	paramPtrs          *CartServiceMockDeleteAllFromCartParamPtrs
-	expectationOrigins CartServiceMockDeleteAllFromCartExpectationOrigins
-	results            *CartServiceMockDeleteAllFromCartResults
+	params             *CartServiceMockCancelOrderParams
+	paramPtrs          *CartServiceMockCancelOrderParamPtrs
+	expectationOrigins CartServiceMockCancelOrderExpectationOrigins
+	results            *CartServiceMockCancelOrderResults
 	returnOrigin       string
 	Counter            uint64
 }
 
-// CartServiceMockDeleteAllFromCartParams contains parameters of the cartService.DeleteAllFromCart
-type CartServiceMockDeleteAllFromCartParams struct {
-	userId int64
+// CartServiceMockCancelOrderParams contains parameters of the cartService.CancelOrder
+type CartServiceMockCancelOrderParams struct {
+	ctx     context.Context
+	orderId int64
 }
 
-// CartServiceMockDeleteAllFromCartParamPtrs contains pointers to parameters of the cartService.DeleteAllFromCart
-type CartServiceMockDeleteAllFromCartParamPtrs struct {
-	userId *int64
+// CartServiceMockCancelOrderParamPtrs contains pointers to parameters of the cartService.CancelOrder
+type CartServiceMockCancelOrderParamPtrs struct {
+	ctx     *context.Context
+	orderId *int64
 }
 
-// CartServiceMockDeleteAllFromCartResults contains results of the cartService.DeleteAllFromCart
-type CartServiceMockDeleteAllFromCartResults struct {
+// CartServiceMockCancelOrderResults contains results of the cartService.CancelOrder
+type CartServiceMockCancelOrderResults struct {
 	err error
 }
 
-// CartServiceMockDeleteAllFromCartOrigins contains origins of expectations of the cartService.DeleteAllFromCart
-type CartServiceMockDeleteAllFromCartExpectationOrigins struct {
+// CartServiceMockCancelOrderOrigins contains origins of expectations of the cartService.CancelOrder
+type CartServiceMockCancelOrderExpectationOrigins struct {
+	origin        string
+	originCtx     string
+	originOrderId string
+}
+
+// Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
+// the test will fail minimock's automatic final call check if the mocked method was not called at least once.
+// Optional() makes method check to work in '0 or more' mode.
+// It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
+// catch the problems when the expected method call is totally skipped during test run.
+func (mmCancelOrder *mCartServiceMockCancelOrder) Optional() *mCartServiceMockCancelOrder {
+	mmCancelOrder.optional = true
+	return mmCancelOrder
+}
+
+// Expect sets up expected params for cartService.CancelOrder
+func (mmCancelOrder *mCartServiceMockCancelOrder) Expect(ctx context.Context, orderId int64) *mCartServiceMockCancelOrder {
+	if mmCancelOrder.mock.funcCancelOrder != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by Set")
+	}
+
+	if mmCancelOrder.defaultExpectation == nil {
+		mmCancelOrder.defaultExpectation = &CartServiceMockCancelOrderExpectation{}
+	}
+
+	if mmCancelOrder.defaultExpectation.paramPtrs != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by ExpectParams functions")
+	}
+
+	mmCancelOrder.defaultExpectation.params = &CartServiceMockCancelOrderParams{ctx, orderId}
+	mmCancelOrder.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCancelOrder.expectations {
+		if minimock.Equal(e.params, mmCancelOrder.defaultExpectation.params) {
+			mmCancelOrder.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCancelOrder.defaultExpectation.params)
+		}
+	}
+
+	return mmCancelOrder
+}
+
+// ExpectCtxParam1 sets up expected param ctx for cartService.CancelOrder
+func (mmCancelOrder *mCartServiceMockCancelOrder) ExpectCtxParam1(ctx context.Context) *mCartServiceMockCancelOrder {
+	if mmCancelOrder.mock.funcCancelOrder != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by Set")
+	}
+
+	if mmCancelOrder.defaultExpectation == nil {
+		mmCancelOrder.defaultExpectation = &CartServiceMockCancelOrderExpectation{}
+	}
+
+	if mmCancelOrder.defaultExpectation.params != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by Expect")
+	}
+
+	if mmCancelOrder.defaultExpectation.paramPtrs == nil {
+		mmCancelOrder.defaultExpectation.paramPtrs = &CartServiceMockCancelOrderParamPtrs{}
+	}
+	mmCancelOrder.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCancelOrder.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmCancelOrder
+}
+
+// ExpectOrderIdParam2 sets up expected param orderId for cartService.CancelOrder
+func (mmCancelOrder *mCartServiceMockCancelOrder) ExpectOrderIdParam2(orderId int64) *mCartServiceMockCancelOrder {
+	if mmCancelOrder.mock.funcCancelOrder != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by Set")
+	}
+
+	if mmCancelOrder.defaultExpectation == nil {
+		mmCancelOrder.defaultExpectation = &CartServiceMockCancelOrderExpectation{}
+	}
+
+	if mmCancelOrder.defaultExpectation.params != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by Expect")
+	}
+
+	if mmCancelOrder.defaultExpectation.paramPtrs == nil {
+		mmCancelOrder.defaultExpectation.paramPtrs = &CartServiceMockCancelOrderParamPtrs{}
+	}
+	mmCancelOrder.defaultExpectation.paramPtrs.orderId = &orderId
+	mmCancelOrder.defaultExpectation.expectationOrigins.originOrderId = minimock.CallerInfo(1)
+
+	return mmCancelOrder
+}
+
+// Inspect accepts an inspector function that has same arguments as the cartService.CancelOrder
+func (mmCancelOrder *mCartServiceMockCancelOrder) Inspect(f func(ctx context.Context, orderId int64)) *mCartServiceMockCancelOrder {
+	if mmCancelOrder.mock.inspectFuncCancelOrder != nil {
+		mmCancelOrder.mock.t.Fatalf("Inspect function is already set for CartServiceMock.CancelOrder")
+	}
+
+	mmCancelOrder.mock.inspectFuncCancelOrder = f
+
+	return mmCancelOrder
+}
+
+// Return sets up results that will be returned by cartService.CancelOrder
+func (mmCancelOrder *mCartServiceMockCancelOrder) Return(err error) *CartServiceMock {
+	if mmCancelOrder.mock.funcCancelOrder != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by Set")
+	}
+
+	if mmCancelOrder.defaultExpectation == nil {
+		mmCancelOrder.defaultExpectation = &CartServiceMockCancelOrderExpectation{mock: mmCancelOrder.mock}
+	}
+	mmCancelOrder.defaultExpectation.results = &CartServiceMockCancelOrderResults{err}
+	mmCancelOrder.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCancelOrder.mock
+}
+
+// Set uses given function f to mock the cartService.CancelOrder method
+func (mmCancelOrder *mCartServiceMockCancelOrder) Set(f func(ctx context.Context, orderId int64) (err error)) *CartServiceMock {
+	if mmCancelOrder.defaultExpectation != nil {
+		mmCancelOrder.mock.t.Fatalf("Default expectation is already set for the cartService.CancelOrder method")
+	}
+
+	if len(mmCancelOrder.expectations) > 0 {
+		mmCancelOrder.mock.t.Fatalf("Some expectations are already set for the cartService.CancelOrder method")
+	}
+
+	mmCancelOrder.mock.funcCancelOrder = f
+	mmCancelOrder.mock.funcCancelOrderOrigin = minimock.CallerInfo(1)
+	return mmCancelOrder.mock
+}
+
+// When sets expectation for the cartService.CancelOrder which will trigger the result defined by the following
+// Then helper
+func (mmCancelOrder *mCartServiceMockCancelOrder) When(ctx context.Context, orderId int64) *CartServiceMockCancelOrderExpectation {
+	if mmCancelOrder.mock.funcCancelOrder != nil {
+		mmCancelOrder.mock.t.Fatalf("CartServiceMock.CancelOrder mock is already set by Set")
+	}
+
+	expectation := &CartServiceMockCancelOrderExpectation{
+		mock:               mmCancelOrder.mock,
+		params:             &CartServiceMockCancelOrderParams{ctx, orderId},
+		expectationOrigins: CartServiceMockCancelOrderExpectationOrigins{origin: minimock.CallerInfo(1)},
+	}
+	mmCancelOrder.expectations = append(mmCancelOrder.expectations, expectation)
+	return expectation
+}
+
+// Then sets up cartService.CancelOrder return parameters for the expectation previously defined by the When method
+func (e *CartServiceMockCancelOrderExpectation) Then(err error) *CartServiceMock {
+	e.results = &CartServiceMockCancelOrderResults{err}
+	return e.mock
+}
+
+// Times sets number of times cartService.CancelOrder should be invoked
+func (mmCancelOrder *mCartServiceMockCancelOrder) Times(n uint64) *mCartServiceMockCancelOrder {
+	if n == 0 {
+		mmCancelOrder.mock.t.Fatalf("Times of CartServiceMock.CancelOrder mock can not be zero")
+	}
+	mm_atomic.StoreUint64(&mmCancelOrder.expectedInvocations, n)
+	mmCancelOrder.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCancelOrder
+}
+
+func (mmCancelOrder *mCartServiceMockCancelOrder) invocationsDone() bool {
+	if len(mmCancelOrder.expectations) == 0 && mmCancelOrder.defaultExpectation == nil && mmCancelOrder.mock.funcCancelOrder == nil {
+		return true
+	}
+
+	totalInvocations := mm_atomic.LoadUint64(&mmCancelOrder.mock.afterCancelOrderCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCancelOrder.expectedInvocations)
+
+	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
+}
+
+// CancelOrder implements mm_handler.cartService
+func (mmCancelOrder *CartServiceMock) CancelOrder(ctx context.Context, orderId int64) (err error) {
+	mm_atomic.AddUint64(&mmCancelOrder.beforeCancelOrderCounter, 1)
+	defer mm_atomic.AddUint64(&mmCancelOrder.afterCancelOrderCounter, 1)
+
+	mmCancelOrder.t.Helper()
+
+	if mmCancelOrder.inspectFuncCancelOrder != nil {
+		mmCancelOrder.inspectFuncCancelOrder(ctx, orderId)
+	}
+
+	mm_params := CartServiceMockCancelOrderParams{ctx, orderId}
+
+	// Record call args
+	mmCancelOrder.CancelOrderMock.mutex.Lock()
+	mmCancelOrder.CancelOrderMock.callArgs = append(mmCancelOrder.CancelOrderMock.callArgs, &mm_params)
+	mmCancelOrder.CancelOrderMock.mutex.Unlock()
+
+	for _, e := range mmCancelOrder.CancelOrderMock.expectations {
+		if minimock.Equal(*e.params, mm_params) {
+			mm_atomic.AddUint64(&e.Counter, 1)
+			return e.results.err
+		}
+	}
+
+	if mmCancelOrder.CancelOrderMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCancelOrder.CancelOrderMock.defaultExpectation.Counter, 1)
+		mm_want := mmCancelOrder.CancelOrderMock.defaultExpectation.params
+		mm_want_ptrs := mmCancelOrder.CancelOrderMock.defaultExpectation.paramPtrs
+
+		mm_got := CartServiceMockCancelOrderParams{ctx, orderId}
+
+		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCancelOrder.t.Errorf("CartServiceMock.CancelOrder got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCancelOrder.CancelOrderMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.orderId != nil && !minimock.Equal(*mm_want_ptrs.orderId, mm_got.orderId) {
+				mmCancelOrder.t.Errorf("CartServiceMock.CancelOrder got unexpected parameter orderId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCancelOrder.CancelOrderMock.defaultExpectation.expectationOrigins.originOrderId, *mm_want_ptrs.orderId, mm_got.orderId, minimock.Diff(*mm_want_ptrs.orderId, mm_got.orderId))
+			}
+
+		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
+			mmCancelOrder.t.Errorf("CartServiceMock.CancelOrder got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCancelOrder.CancelOrderMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+		}
+
+		mm_results := mmCancelOrder.CancelOrderMock.defaultExpectation.results
+		if mm_results == nil {
+			mmCancelOrder.t.Fatal("No results are set for the CartServiceMock.CancelOrder")
+		}
+		return (*mm_results).err
+	}
+	if mmCancelOrder.funcCancelOrder != nil {
+		return mmCancelOrder.funcCancelOrder(ctx, orderId)
+	}
+	mmCancelOrder.t.Fatalf("Unexpected call to CartServiceMock.CancelOrder. %v %v", ctx, orderId)
+	return
+}
+
+// CancelOrderAfterCounter returns a count of finished CartServiceMock.CancelOrder invocations
+func (mmCancelOrder *CartServiceMock) CancelOrderAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCancelOrder.afterCancelOrderCounter)
+}
+
+// CancelOrderBeforeCounter returns a count of CartServiceMock.CancelOrder invocations
+func (mmCancelOrder *CartServiceMock) CancelOrderBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCancelOrder.beforeCancelOrderCounter)
+}
+
+// Calls returns a list of arguments used in each call to CartServiceMock.CancelOrder.
+// The list is in the same order as the calls were made (i.e. recent calls have a higher index)
+func (mmCancelOrder *mCartServiceMockCancelOrder) Calls() []*CartServiceMockCancelOrderParams {
+	mmCancelOrder.mutex.RLock()
+
+	argCopy := make([]*CartServiceMockCancelOrderParams, len(mmCancelOrder.callArgs))
+	copy(argCopy, mmCancelOrder.callArgs)
+
+	mmCancelOrder.mutex.RUnlock()
+
+	return argCopy
+}
+
+// MinimockCancelOrderDone returns true if the count of the CancelOrder invocations corresponds
+// the number of defined expectations
+func (m *CartServiceMock) MinimockCancelOrderDone() bool {
+	if m.CancelOrderMock.optional {
+		// Optional methods provide '0 or more' call count restriction.
+		return true
+	}
+
+	for _, e := range m.CancelOrderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			return false
+		}
+	}
+
+	return m.CancelOrderMock.invocationsDone()
+}
+
+// MinimockCancelOrderInspect logs each unmet expectation
+func (m *CartServiceMock) MinimockCancelOrderInspect() {
+	for _, e := range m.CancelOrderMock.expectations {
+		if mm_atomic.LoadUint64(&e.Counter) < 1 {
+			m.t.Errorf("Expected call to CartServiceMock.CancelOrder at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+		}
+	}
+
+	afterCancelOrderCounter := mm_atomic.LoadUint64(&m.afterCancelOrderCounter)
+	// if default expectation was set then invocations count should be greater than zero
+	if m.CancelOrderMock.defaultExpectation != nil && afterCancelOrderCounter < 1 {
+		if m.CancelOrderMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to CartServiceMock.CancelOrder at\n%s", m.CancelOrderMock.defaultExpectation.returnOrigin)
+		} else {
+			m.t.Errorf("Expected call to CartServiceMock.CancelOrder at\n%s with params: %#v", m.CancelOrderMock.defaultExpectation.expectationOrigins.origin, *m.CancelOrderMock.defaultExpectation.params)
+		}
+	}
+	// if func was set then invocations count should be greater than zero
+	if m.funcCancelOrder != nil && afterCancelOrderCounter < 1 {
+		m.t.Errorf("Expected call to CartServiceMock.CancelOrder at\n%s", m.funcCancelOrderOrigin)
+	}
+
+	if !m.CancelOrderMock.invocationsDone() && afterCancelOrderCounter > 0 {
+		m.t.Errorf("Expected %d calls to CartServiceMock.CancelOrder at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CancelOrderMock.expectedInvocations), m.CancelOrderMock.expectedInvocationsOrigin, afterCancelOrderCounter)
+	}
+}
+
+type mCartServiceMockCheckout struct {
+	optional           bool
+	mock               *CartServiceMock
+	defaultExpectation *CartServiceMockCheckoutExpectation
+	expectations       []*CartServiceMockCheckoutExpectation
+
+	callArgs []*CartServiceMockCheckoutParams
+	mutex    sync.RWMutex
+
+	expectedInvocations       uint64
+	expectedInvocationsOrigin string
+}
+
+// CartServiceMockCheckoutExpectation specifies expectation struct of the cartService.Checkout
+type CartServiceMockCheckoutExpectation struct {
+	mock               *CartServiceMock
+	params             *CartServiceMockCheckoutParams
+	paramPtrs          *CartServiceMockCheckoutParamPtrs
+	expectationOrigins CartServiceMockCheckoutExpectationOrigins
+	results            *CartServiceMockCheckoutResults
+	returnOrigin       string
+	Counter            uint64
+}
+
+// CartServiceMockCheckoutParams contains parameters of the cartService.Checkout
+type CartServiceMockCheckoutParams struct {
+	ctx    context.Context
+	userId int64
+}
+
+// CartServiceMockCheckoutParamPtrs contains pointers to parameters of the cartService.Checkout
+type CartServiceMockCheckoutParamPtrs struct {
+	ctx    *context.Context
+	userId *int64
+}
+
+// CartServiceMockCheckoutResults contains results of the cartService.Checkout
+type CartServiceMockCheckoutResults struct {
+	i1  int64
+	err error
+}
+
+// CartServiceMockCheckoutOrigins contains origins of expectations of the cartService.Checkout
+type CartServiceMockCheckoutExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
 }
 
@@ -474,264 +893,292 @@ type CartServiceMockDeleteAllFromCartExpectationOrigins struct {
 // Optional() makes method check to work in '0 or more' mode.
 // It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
 // catch the problems when the expected method call is totally skipped during test run.
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) Optional() *mCartServiceMockDeleteAllFromCart {
-	mmDeleteAllFromCart.optional = true
-	return mmDeleteAllFromCart
+func (mmCheckout *mCartServiceMockCheckout) Optional() *mCartServiceMockCheckout {
+	mmCheckout.optional = true
+	return mmCheckout
 }
 
-// Expect sets up expected params for cartService.DeleteAllFromCart
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) Expect(userId int64) *mCartServiceMockDeleteAllFromCart {
-	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("CartServiceMock.DeleteAllFromCart mock is already set by Set")
+// Expect sets up expected params for cartService.Checkout
+func (mmCheckout *mCartServiceMockCheckout) Expect(ctx context.Context, userId int64) *mCartServiceMockCheckout {
+	if mmCheckout.mock.funcCheckout != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by Set")
 	}
 
-	if mmDeleteAllFromCart.defaultExpectation == nil {
-		mmDeleteAllFromCart.defaultExpectation = &CartServiceMockDeleteAllFromCartExpectation{}
+	if mmCheckout.defaultExpectation == nil {
+		mmCheckout.defaultExpectation = &CartServiceMockCheckoutExpectation{}
 	}
 
-	if mmDeleteAllFromCart.defaultExpectation.paramPtrs != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("CartServiceMock.DeleteAllFromCart mock is already set by ExpectParams functions")
+	if mmCheckout.defaultExpectation.paramPtrs != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by ExpectParams functions")
 	}
 
-	mmDeleteAllFromCart.defaultExpectation.params = &CartServiceMockDeleteAllFromCartParams{userId}
-	mmDeleteAllFromCart.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
-	for _, e := range mmDeleteAllFromCart.expectations {
-		if minimock.Equal(e.params, mmDeleteAllFromCart.defaultExpectation.params) {
-			mmDeleteAllFromCart.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmDeleteAllFromCart.defaultExpectation.params)
+	mmCheckout.defaultExpectation.params = &CartServiceMockCheckoutParams{ctx, userId}
+	mmCheckout.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmCheckout.expectations {
+		if minimock.Equal(e.params, mmCheckout.defaultExpectation.params) {
+			mmCheckout.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmCheckout.defaultExpectation.params)
 		}
 	}
 
-	return mmDeleteAllFromCart
+	return mmCheckout
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartService.DeleteAllFromCart
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) ExpectUserIdParam1(userId int64) *mCartServiceMockDeleteAllFromCart {
-	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("CartServiceMock.DeleteAllFromCart mock is already set by Set")
+// ExpectCtxParam1 sets up expected param ctx for cartService.Checkout
+func (mmCheckout *mCartServiceMockCheckout) ExpectCtxParam1(ctx context.Context) *mCartServiceMockCheckout {
+	if mmCheckout.mock.funcCheckout != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by Set")
 	}
 
-	if mmDeleteAllFromCart.defaultExpectation == nil {
-		mmDeleteAllFromCart.defaultExpectation = &CartServiceMockDeleteAllFromCartExpectation{}
+	if mmCheckout.defaultExpectation == nil {
+		mmCheckout.defaultExpectation = &CartServiceMockCheckoutExpectation{}
 	}
 
-	if mmDeleteAllFromCart.defaultExpectation.params != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("CartServiceMock.DeleteAllFromCart mock is already set by Expect")
+	if mmCheckout.defaultExpectation.params != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by Expect")
 	}
 
-	if mmDeleteAllFromCart.defaultExpectation.paramPtrs == nil {
-		mmDeleteAllFromCart.defaultExpectation.paramPtrs = &CartServiceMockDeleteAllFromCartParamPtrs{}
+	if mmCheckout.defaultExpectation.paramPtrs == nil {
+		mmCheckout.defaultExpectation.paramPtrs = &CartServiceMockCheckoutParamPtrs{}
 	}
-	mmDeleteAllFromCart.defaultExpectation.paramPtrs.userId = &userId
-	mmDeleteAllFromCart.defaultExpectation.expectationOrigins.originUserId = minimock.CallerInfo(1)
+	mmCheckout.defaultExpectation.paramPtrs.ctx = &ctx
+	mmCheckout.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
 
-	return mmDeleteAllFromCart
+	return mmCheckout
 }
 
-// Inspect accepts an inspector function that has same arguments as the cartService.DeleteAllFromCart
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) Inspect(f func(userId int64)) *mCartServiceMockDeleteAllFromCart {
-	if mmDeleteAllFromCart.mock.inspectFuncDeleteAllFromCart != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("Inspect function is already set for CartServiceMock.DeleteAllFromCart")
+// ExpectUserIdParam2 sets up expected param userId for cartService.Checkout
+func (mmCheckout *mCartServiceMockCheckout) ExpectUserIdParam2(userId int64) *mCartServiceMockCheckout {
+	if mmCheckout.mock.funcCheckout != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by Set")
 	}
 
-	mmDeleteAllFromCart.mock.inspectFuncDeleteAllFromCart = f
+	if mmCheckout.defaultExpectation == nil {
+		mmCheckout.defaultExpectation = &CartServiceMockCheckoutExpectation{}
+	}
 
-	return mmDeleteAllFromCart
+	if mmCheckout.defaultExpectation.params != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by Expect")
+	}
+
+	if mmCheckout.defaultExpectation.paramPtrs == nil {
+		mmCheckout.defaultExpectation.paramPtrs = &CartServiceMockCheckoutParamPtrs{}
+	}
+	mmCheckout.defaultExpectation.paramPtrs.userId = &userId
+	mmCheckout.defaultExpectation.expectationOrigins.originUserId = minimock.CallerInfo(1)
+
+	return mmCheckout
 }
 
-// Return sets up results that will be returned by cartService.DeleteAllFromCart
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) Return(err error) *CartServiceMock {
-	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("CartServiceMock.DeleteAllFromCart mock is already set by Set")
+// Inspect accepts an inspector function that has same arguments as the cartService.Checkout
+func (mmCheckout *mCartServiceMockCheckout) Inspect(f func(ctx context.Context, userId int64)) *mCartServiceMockCheckout {
+	if mmCheckout.mock.inspectFuncCheckout != nil {
+		mmCheckout.mock.t.Fatalf("Inspect function is already set for CartServiceMock.Checkout")
 	}
 
-	if mmDeleteAllFromCart.defaultExpectation == nil {
-		mmDeleteAllFromCart.defaultExpectation = &CartServiceMockDeleteAllFromCartExpectation{mock: mmDeleteAllFromCart.mock}
-	}
-	mmDeleteAllFromCart.defaultExpectation.results = &CartServiceMockDeleteAllFromCartResults{err}
-	mmDeleteAllFromCart.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
-	return mmDeleteAllFromCart.mock
+	mmCheckout.mock.inspectFuncCheckout = f
+
+	return mmCheckout
 }
 
-// Set uses given function f to mock the cartService.DeleteAllFromCart method
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) Set(f func(userId int64) (err error)) *CartServiceMock {
-	if mmDeleteAllFromCart.defaultExpectation != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("Default expectation is already set for the cartService.DeleteAllFromCart method")
+// Return sets up results that will be returned by cartService.Checkout
+func (mmCheckout *mCartServiceMockCheckout) Return(i1 int64, err error) *CartServiceMock {
+	if mmCheckout.mock.funcCheckout != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by Set")
 	}
 
-	if len(mmDeleteAllFromCart.expectations) > 0 {
-		mmDeleteAllFromCart.mock.t.Fatalf("Some expectations are already set for the cartService.DeleteAllFromCart method")
+	if mmCheckout.defaultExpectation == nil {
+		mmCheckout.defaultExpectation = &CartServiceMockCheckoutExpectation{mock: mmCheckout.mock}
 	}
-
-	mmDeleteAllFromCart.mock.funcDeleteAllFromCart = f
-	mmDeleteAllFromCart.mock.funcDeleteAllFromCartOrigin = minimock.CallerInfo(1)
-	return mmDeleteAllFromCart.mock
+	mmCheckout.defaultExpectation.results = &CartServiceMockCheckoutResults{i1, err}
+	mmCheckout.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmCheckout.mock
 }
 
-// When sets expectation for the cartService.DeleteAllFromCart which will trigger the result defined by the following
+// Set uses given function f to mock the cartService.Checkout method
+func (mmCheckout *mCartServiceMockCheckout) Set(f func(ctx context.Context, userId int64) (i1 int64, err error)) *CartServiceMock {
+	if mmCheckout.defaultExpectation != nil {
+		mmCheckout.mock.t.Fatalf("Default expectation is already set for the cartService.Checkout method")
+	}
+
+	if len(mmCheckout.expectations) > 0 {
+		mmCheckout.mock.t.Fatalf("Some expectations are already set for the cartService.Checkout method")
+	}
+
+	mmCheckout.mock.funcCheckout = f
+	mmCheckout.mock.funcCheckoutOrigin = minimock.CallerInfo(1)
+	return mmCheckout.mock
+}
+
+// When sets expectation for the cartService.Checkout which will trigger the result defined by the following
 // Then helper
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) When(userId int64) *CartServiceMockDeleteAllFromCartExpectation {
-	if mmDeleteAllFromCart.mock.funcDeleteAllFromCart != nil {
-		mmDeleteAllFromCart.mock.t.Fatalf("CartServiceMock.DeleteAllFromCart mock is already set by Set")
+func (mmCheckout *mCartServiceMockCheckout) When(ctx context.Context, userId int64) *CartServiceMockCheckoutExpectation {
+	if mmCheckout.mock.funcCheckout != nil {
+		mmCheckout.mock.t.Fatalf("CartServiceMock.Checkout mock is already set by Set")
 	}
 
-	expectation := &CartServiceMockDeleteAllFromCartExpectation{
-		mock:               mmDeleteAllFromCart.mock,
-		params:             &CartServiceMockDeleteAllFromCartParams{userId},
-		expectationOrigins: CartServiceMockDeleteAllFromCartExpectationOrigins{origin: minimock.CallerInfo(1)},
+	expectation := &CartServiceMockCheckoutExpectation{
+		mock:               mmCheckout.mock,
+		params:             &CartServiceMockCheckoutParams{ctx, userId},
+		expectationOrigins: CartServiceMockCheckoutExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
-	mmDeleteAllFromCart.expectations = append(mmDeleteAllFromCart.expectations, expectation)
+	mmCheckout.expectations = append(mmCheckout.expectations, expectation)
 	return expectation
 }
 
-// Then sets up cartService.DeleteAllFromCart return parameters for the expectation previously defined by the When method
-func (e *CartServiceMockDeleteAllFromCartExpectation) Then(err error) *CartServiceMock {
-	e.results = &CartServiceMockDeleteAllFromCartResults{err}
+// Then sets up cartService.Checkout return parameters for the expectation previously defined by the When method
+func (e *CartServiceMockCheckoutExpectation) Then(i1 int64, err error) *CartServiceMock {
+	e.results = &CartServiceMockCheckoutResults{i1, err}
 	return e.mock
 }
 
-// Times sets number of times cartService.DeleteAllFromCart should be invoked
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) Times(n uint64) *mCartServiceMockDeleteAllFromCart {
+// Times sets number of times cartService.Checkout should be invoked
+func (mmCheckout *mCartServiceMockCheckout) Times(n uint64) *mCartServiceMockCheckout {
 	if n == 0 {
-		mmDeleteAllFromCart.mock.t.Fatalf("Times of CartServiceMock.DeleteAllFromCart mock can not be zero")
+		mmCheckout.mock.t.Fatalf("Times of CartServiceMock.Checkout mock can not be zero")
 	}
-	mm_atomic.StoreUint64(&mmDeleteAllFromCart.expectedInvocations, n)
-	mmDeleteAllFromCart.expectedInvocationsOrigin = minimock.CallerInfo(1)
-	return mmDeleteAllFromCart
+	mm_atomic.StoreUint64(&mmCheckout.expectedInvocations, n)
+	mmCheckout.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmCheckout
 }
 
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) invocationsDone() bool {
-	if len(mmDeleteAllFromCart.expectations) == 0 && mmDeleteAllFromCart.defaultExpectation == nil && mmDeleteAllFromCart.mock.funcDeleteAllFromCart == nil {
+func (mmCheckout *mCartServiceMockCheckout) invocationsDone() bool {
+	if len(mmCheckout.expectations) == 0 && mmCheckout.defaultExpectation == nil && mmCheckout.mock.funcCheckout == nil {
 		return true
 	}
 
-	totalInvocations := mm_atomic.LoadUint64(&mmDeleteAllFromCart.mock.afterDeleteAllFromCartCounter)
-	expectedInvocations := mm_atomic.LoadUint64(&mmDeleteAllFromCart.expectedInvocations)
+	totalInvocations := mm_atomic.LoadUint64(&mmCheckout.mock.afterCheckoutCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmCheckout.expectedInvocations)
 
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// DeleteAllFromCart implements mm_handler.cartService
-func (mmDeleteAllFromCart *CartServiceMock) DeleteAllFromCart(userId int64) (err error) {
-	mm_atomic.AddUint64(&mmDeleteAllFromCart.beforeDeleteAllFromCartCounter, 1)
-	defer mm_atomic.AddUint64(&mmDeleteAllFromCart.afterDeleteAllFromCartCounter, 1)
+// Checkout implements mm_handler.cartService
+func (mmCheckout *CartServiceMock) Checkout(ctx context.Context, userId int64) (i1 int64, err error) {
+	mm_atomic.AddUint64(&mmCheckout.beforeCheckoutCounter, 1)
+	defer mm_atomic.AddUint64(&mmCheckout.afterCheckoutCounter, 1)
 
-	mmDeleteAllFromCart.t.Helper()
+	mmCheckout.t.Helper()
 
-	if mmDeleteAllFromCart.inspectFuncDeleteAllFromCart != nil {
-		mmDeleteAllFromCart.inspectFuncDeleteAllFromCart(userId)
+	if mmCheckout.inspectFuncCheckout != nil {
+		mmCheckout.inspectFuncCheckout(ctx, userId)
 	}
 
-	mm_params := CartServiceMockDeleteAllFromCartParams{userId}
+	mm_params := CartServiceMockCheckoutParams{ctx, userId}
 
 	// Record call args
-	mmDeleteAllFromCart.DeleteAllFromCartMock.mutex.Lock()
-	mmDeleteAllFromCart.DeleteAllFromCartMock.callArgs = append(mmDeleteAllFromCart.DeleteAllFromCartMock.callArgs, &mm_params)
-	mmDeleteAllFromCart.DeleteAllFromCartMock.mutex.Unlock()
+	mmCheckout.CheckoutMock.mutex.Lock()
+	mmCheckout.CheckoutMock.callArgs = append(mmCheckout.CheckoutMock.callArgs, &mm_params)
+	mmCheckout.CheckoutMock.mutex.Unlock()
 
-	for _, e := range mmDeleteAllFromCart.DeleteAllFromCartMock.expectations {
+	for _, e := range mmCheckout.CheckoutMock.expectations {
 		if minimock.Equal(*e.params, mm_params) {
 			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.err
+			return e.results.i1, e.results.err
 		}
 	}
 
-	if mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation != nil {
-		mm_atomic.AddUint64(&mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.Counter, 1)
-		mm_want := mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.params
-		mm_want_ptrs := mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.paramPtrs
+	if mmCheckout.CheckoutMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmCheckout.CheckoutMock.defaultExpectation.Counter, 1)
+		mm_want := mmCheckout.CheckoutMock.defaultExpectation.params
+		mm_want_ptrs := mmCheckout.CheckoutMock.defaultExpectation.paramPtrs
 
-		mm_got := CartServiceMockDeleteAllFromCartParams{userId}
+		mm_got := CartServiceMockCheckoutParams{ctx, userId}
 
 		if mm_want_ptrs != nil {
 
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmCheckout.t.Errorf("CartServiceMock.Checkout got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCheckout.CheckoutMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
-				mmDeleteAllFromCart.t.Errorf("CartServiceMock.DeleteAllFromCart got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-					mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.expectationOrigins.originUserId, *mm_want_ptrs.userId, mm_got.userId, minimock.Diff(*mm_want_ptrs.userId, mm_got.userId))
+				mmCheckout.t.Errorf("CartServiceMock.Checkout got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmCheckout.CheckoutMock.defaultExpectation.expectationOrigins.originUserId, *mm_want_ptrs.userId, mm_got.userId, minimock.Diff(*mm_want_ptrs.userId, mm_got.userId))
 			}
 
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmDeleteAllFromCart.t.Errorf("CartServiceMock.DeleteAllFromCart got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-				mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+			mmCheckout.t.Errorf("CartServiceMock.Checkout got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmCheckout.CheckoutMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
 		}
 
-		mm_results := mmDeleteAllFromCart.DeleteAllFromCartMock.defaultExpectation.results
+		mm_results := mmCheckout.CheckoutMock.defaultExpectation.results
 		if mm_results == nil {
-			mmDeleteAllFromCart.t.Fatal("No results are set for the CartServiceMock.DeleteAllFromCart")
+			mmCheckout.t.Fatal("No results are set for the CartServiceMock.Checkout")
 		}
-		return (*mm_results).err
+		return (*mm_results).i1, (*mm_results).err
 	}
-	if mmDeleteAllFromCart.funcDeleteAllFromCart != nil {
-		return mmDeleteAllFromCart.funcDeleteAllFromCart(userId)
+	if mmCheckout.funcCheckout != nil {
+		return mmCheckout.funcCheckout(ctx, userId)
 	}
-	mmDeleteAllFromCart.t.Fatalf("Unexpected call to CartServiceMock.DeleteAllFromCart. %v", userId)
+	mmCheckout.t.Fatalf("Unexpected call to CartServiceMock.Checkout. %v %v", ctx, userId)
 	return
 }
 
-// DeleteAllFromCartAfterCounter returns a count of finished CartServiceMock.DeleteAllFromCart invocations
-func (mmDeleteAllFromCart *CartServiceMock) DeleteAllFromCartAfterCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmDeleteAllFromCart.afterDeleteAllFromCartCounter)
+// CheckoutAfterCounter returns a count of finished CartServiceMock.Checkout invocations
+func (mmCheckout *CartServiceMock) CheckoutAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCheckout.afterCheckoutCounter)
 }
 
-// DeleteAllFromCartBeforeCounter returns a count of CartServiceMock.DeleteAllFromCart invocations
-func (mmDeleteAllFromCart *CartServiceMock) DeleteAllFromCartBeforeCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmDeleteAllFromCart.beforeDeleteAllFromCartCounter)
+// CheckoutBeforeCounter returns a count of CartServiceMock.Checkout invocations
+func (mmCheckout *CartServiceMock) CheckoutBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmCheckout.beforeCheckoutCounter)
 }
 
-// Calls returns a list of arguments used in each call to CartServiceMock.DeleteAllFromCart.
+// Calls returns a list of arguments used in each call to CartServiceMock.Checkout.
 // The list is in the same order as the calls were made (i.e. recent calls have a higher index)
-func (mmDeleteAllFromCart *mCartServiceMockDeleteAllFromCart) Calls() []*CartServiceMockDeleteAllFromCartParams {
-	mmDeleteAllFromCart.mutex.RLock()
+func (mmCheckout *mCartServiceMockCheckout) Calls() []*CartServiceMockCheckoutParams {
+	mmCheckout.mutex.RLock()
 
-	argCopy := make([]*CartServiceMockDeleteAllFromCartParams, len(mmDeleteAllFromCart.callArgs))
-	copy(argCopy, mmDeleteAllFromCart.callArgs)
+	argCopy := make([]*CartServiceMockCheckoutParams, len(mmCheckout.callArgs))
+	copy(argCopy, mmCheckout.callArgs)
 
-	mmDeleteAllFromCart.mutex.RUnlock()
+	mmCheckout.mutex.RUnlock()
 
 	return argCopy
 }
 
-// MinimockDeleteAllFromCartDone returns true if the count of the DeleteAllFromCart invocations corresponds
+// MinimockCheckoutDone returns true if the count of the Checkout invocations corresponds
 // the number of defined expectations
-func (m *CartServiceMock) MinimockDeleteAllFromCartDone() bool {
-	if m.DeleteAllFromCartMock.optional {
+func (m *CartServiceMock) MinimockCheckoutDone() bool {
+	if m.CheckoutMock.optional {
 		// Optional methods provide '0 or more' call count restriction.
 		return true
 	}
 
-	for _, e := range m.DeleteAllFromCartMock.expectations {
+	for _, e := range m.CheckoutMock.expectations {
 		if mm_atomic.LoadUint64(&e.Counter) < 1 {
 			return false
 		}
 	}
 
-	return m.DeleteAllFromCartMock.invocationsDone()
+	return m.CheckoutMock.invocationsDone()
 }
 
-// MinimockDeleteAllFromCartInspect logs each unmet expectation
-func (m *CartServiceMock) MinimockDeleteAllFromCartInspect() {
-	for _, e := range m.DeleteAllFromCartMock.expectations {
+// MinimockCheckoutInspect logs each unmet expectation
+func (m *CartServiceMock) MinimockCheckoutInspect() {
+	for _, e := range m.CheckoutMock.expectations {
 		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to CartServiceMock.DeleteAllFromCart at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+			m.t.Errorf("Expected call to CartServiceMock.Checkout at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
 		}
 	}
 
-	afterDeleteAllFromCartCounter := mm_atomic.LoadUint64(&m.afterDeleteAllFromCartCounter)
+	afterCheckoutCounter := mm_atomic.LoadUint64(&m.afterCheckoutCounter)
 	// if default expectation was set then invocations count should be greater than zero
-	if m.DeleteAllFromCartMock.defaultExpectation != nil && afterDeleteAllFromCartCounter < 1 {
-		if m.DeleteAllFromCartMock.defaultExpectation.params == nil {
-			m.t.Errorf("Expected call to CartServiceMock.DeleteAllFromCart at\n%s", m.DeleteAllFromCartMock.defaultExpectation.returnOrigin)
+	if m.CheckoutMock.defaultExpectation != nil && afterCheckoutCounter < 1 {
+		if m.CheckoutMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to CartServiceMock.Checkout at\n%s", m.CheckoutMock.defaultExpectation.returnOrigin)
 		} else {
-			m.t.Errorf("Expected call to CartServiceMock.DeleteAllFromCart at\n%s with params: %#v", m.DeleteAllFromCartMock.defaultExpectation.expectationOrigins.origin, *m.DeleteAllFromCartMock.defaultExpectation.params)
+			m.t.Errorf("Expected call to CartServiceMock.Checkout at\n%s with params: %#v", m.CheckoutMock.defaultExpectation.expectationOrigins.origin, *m.CheckoutMock.defaultExpectation.params)
 		}
 	}
 	// if func was set then invocations count should be greater than zero
-	if m.funcDeleteAllFromCart != nil && afterDeleteAllFromCartCounter < 1 {
-		m.t.Errorf("Expected call to CartServiceMock.DeleteAllFromCart at\n%s", m.funcDeleteAllFromCartOrigin)
+	if m.funcCheckout != nil && afterCheckoutCounter < 1 {
+		m.t.Errorf("Expected call to CartServiceMock.Checkout at\n%s", m.funcCheckoutOrigin)
 	}
 
-	if !m.DeleteAllFromCartMock.invocationsDone() && afterDeleteAllFromCartCounter > 0 {
-		m.t.Errorf("Expected %d calls to CartServiceMock.DeleteAllFromCart at\n%s but found %d calls",
-			mm_atomic.LoadUint64(&m.DeleteAllFromCartMock.expectedInvocations), m.DeleteAllFromCartMock.expectedInvocationsOrigin, afterDeleteAllFromCartCounter)
+	if !m.CheckoutMock.invocationsDone() && afterCheckoutCounter > 0 {
+		m.t.Errorf("Expected %d calls to CartServiceMock.Checkout at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.CheckoutMock.expectedInvocations), m.CheckoutMock.expectedInvocationsOrigin, afterCheckoutCounter)
 	}
 }
 
@@ -761,12 +1208,14 @@ type CartServiceMockDeleteFromCartExpectation struct {
 
 // CartServiceMockDeleteFromCartParams contains parameters of the cartService.DeleteFromCart
 type CartServiceMockDeleteFromCartParams struct {
+	ctx    context.Context
 	userId int64
 	skuId  int64
 }
 
 // CartServiceMockDeleteFromCartParamPtrs contains pointers to parameters of the cartService.DeleteFromCart
 type CartServiceMockDeleteFromCartParamPtrs struct {
+	ctx    *context.Context
 	userId *int64
 	skuId  *int64
 }
@@ -779,6 +1228,7 @@ type CartServiceMockDeleteFromCartResults struct {
 // CartServiceMockDeleteFromCartOrigins contains origins of expectations of the cartService.DeleteFromCart
 type CartServiceMockDeleteFromCartExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
 	originSkuId  string
 }
@@ -794,7 +1244,7 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Optional() *mCartService
 }
 
 // Expect sets up expected params for cartService.DeleteFromCart
-func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Expect(userId int64, skuId int64) *mCartServiceMockDeleteFromCart {
+func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Expect(ctx context.Context, userId int64, skuId int64) *mCartServiceMockDeleteFromCart {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartServiceMock.DeleteFromCart mock is already set by Set")
 	}
@@ -807,7 +1257,7 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Expect(userId int64, sku
 		mmDeleteFromCart.mock.t.Fatalf("CartServiceMock.DeleteFromCart mock is already set by ExpectParams functions")
 	}
 
-	mmDeleteFromCart.defaultExpectation.params = &CartServiceMockDeleteFromCartParams{userId, skuId}
+	mmDeleteFromCart.defaultExpectation.params = &CartServiceMockDeleteFromCartParams{ctx, userId, skuId}
 	mmDeleteFromCart.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmDeleteFromCart.expectations {
 		if minimock.Equal(e.params, mmDeleteFromCart.defaultExpectation.params) {
@@ -818,8 +1268,31 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Expect(userId int64, sku
 	return mmDeleteFromCart
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartService.DeleteFromCart
-func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) ExpectUserIdParam1(userId int64) *mCartServiceMockDeleteFromCart {
+// ExpectCtxParam1 sets up expected param ctx for cartService.DeleteFromCart
+func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) ExpectCtxParam1(ctx context.Context) *mCartServiceMockDeleteFromCart {
+	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
+		mmDeleteFromCart.mock.t.Fatalf("CartServiceMock.DeleteFromCart mock is already set by Set")
+	}
+
+	if mmDeleteFromCart.defaultExpectation == nil {
+		mmDeleteFromCart.defaultExpectation = &CartServiceMockDeleteFromCartExpectation{}
+	}
+
+	if mmDeleteFromCart.defaultExpectation.params != nil {
+		mmDeleteFromCart.mock.t.Fatalf("CartServiceMock.DeleteFromCart mock is already set by Expect")
+	}
+
+	if mmDeleteFromCart.defaultExpectation.paramPtrs == nil {
+		mmDeleteFromCart.defaultExpectation.paramPtrs = &CartServiceMockDeleteFromCartParamPtrs{}
+	}
+	mmDeleteFromCart.defaultExpectation.paramPtrs.ctx = &ctx
+	mmDeleteFromCart.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmDeleteFromCart
+}
+
+// ExpectUserIdParam2 sets up expected param userId for cartService.DeleteFromCart
+func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) ExpectUserIdParam2(userId int64) *mCartServiceMockDeleteFromCart {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartServiceMock.DeleteFromCart mock is already set by Set")
 	}
@@ -841,8 +1314,8 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) ExpectUserIdParam1(userI
 	return mmDeleteFromCart
 }
 
-// ExpectSkuIdParam2 sets up expected param skuId for cartService.DeleteFromCart
-func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) ExpectSkuIdParam2(skuId int64) *mCartServiceMockDeleteFromCart {
+// ExpectSkuIdParam3 sets up expected param skuId for cartService.DeleteFromCart
+func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) ExpectSkuIdParam3(skuId int64) *mCartServiceMockDeleteFromCart {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartServiceMock.DeleteFromCart mock is already set by Set")
 	}
@@ -865,7 +1338,7 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) ExpectSkuIdParam2(skuId 
 }
 
 // Inspect accepts an inspector function that has same arguments as the cartService.DeleteFromCart
-func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Inspect(f func(userId int64, skuId int64)) *mCartServiceMockDeleteFromCart {
+func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Inspect(f func(ctx context.Context, userId int64, skuId int64)) *mCartServiceMockDeleteFromCart {
 	if mmDeleteFromCart.mock.inspectFuncDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("Inspect function is already set for CartServiceMock.DeleteFromCart")
 	}
@@ -890,7 +1363,7 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Return(err error) *CartS
 }
 
 // Set uses given function f to mock the cartService.DeleteFromCart method
-func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Set(f func(userId int64, skuId int64) (err error)) *CartServiceMock {
+func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Set(f func(ctx context.Context, userId int64, skuId int64) (err error)) *CartServiceMock {
 	if mmDeleteFromCart.defaultExpectation != nil {
 		mmDeleteFromCart.mock.t.Fatalf("Default expectation is already set for the cartService.DeleteFromCart method")
 	}
@@ -906,14 +1379,14 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) Set(f func(userId int64,
 
 // When sets expectation for the cartService.DeleteFromCart which will trigger the result defined by the following
 // Then helper
-func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) When(userId int64, skuId int64) *CartServiceMockDeleteFromCartExpectation {
+func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) When(ctx context.Context, userId int64, skuId int64) *CartServiceMockDeleteFromCartExpectation {
 	if mmDeleteFromCart.mock.funcDeleteFromCart != nil {
 		mmDeleteFromCart.mock.t.Fatalf("CartServiceMock.DeleteFromCart mock is already set by Set")
 	}
 
 	expectation := &CartServiceMockDeleteFromCartExpectation{
 		mock:               mmDeleteFromCart.mock,
-		params:             &CartServiceMockDeleteFromCartParams{userId, skuId},
+		params:             &CartServiceMockDeleteFromCartParams{ctx, userId, skuId},
 		expectationOrigins: CartServiceMockDeleteFromCartExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmDeleteFromCart.expectations = append(mmDeleteFromCart.expectations, expectation)
@@ -948,17 +1421,17 @@ func (mmDeleteFromCart *mCartServiceMockDeleteFromCart) invocationsDone() bool {
 }
 
 // DeleteFromCart implements mm_handler.cartService
-func (mmDeleteFromCart *CartServiceMock) DeleteFromCart(userId int64, skuId int64) (err error) {
+func (mmDeleteFromCart *CartServiceMock) DeleteFromCart(ctx context.Context, userId int64, skuId int64) (err error) {
 	mm_atomic.AddUint64(&mmDeleteFromCart.beforeDeleteFromCartCounter, 1)
 	defer mm_atomic.AddUint64(&mmDeleteFromCart.afterDeleteFromCartCounter, 1)
 
 	mmDeleteFromCart.t.Helper()
 
 	if mmDeleteFromCart.inspectFuncDeleteFromCart != nil {
-		mmDeleteFromCart.inspectFuncDeleteFromCart(userId, skuId)
+		mmDeleteFromCart.inspectFuncDeleteFromCart(ctx, userId, skuId)
 	}
 
-	mm_params := CartServiceMockDeleteFromCartParams{userId, skuId}
+	mm_params := CartServiceMockDeleteFromCartParams{ctx, userId, skuId}
 
 	// Record call args
 	mmDeleteFromCart.DeleteFromCartMock.mutex.Lock()
@@ -977,9 +1450,14 @@ func (mmDeleteFromCart *CartServiceMock) DeleteFromCart(userId int64, skuId int6
 		mm_want := mmDeleteFromCart.DeleteFromCartMock.defaultExpectation.params
 		mm_want_ptrs := mmDeleteFromCart.DeleteFromCartMock.defaultExpectation.paramPtrs
 
-		mm_got := CartServiceMockDeleteFromCartParams{userId, skuId}
+		mm_got := CartServiceMockDeleteFromCartParams{ctx, userId, skuId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmDeleteFromCart.t.Errorf("CartServiceMock.DeleteFromCart got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmDeleteFromCart.DeleteFromCartMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
 				mmDeleteFromCart.t.Errorf("CartServiceMock.DeleteFromCart got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
@@ -1003,9 +1481,9 @@ func (mmDeleteFromCart *CartServiceMock) DeleteFromCart(userId int64, skuId int6
 		return (*mm_results).err
 	}
 	if mmDeleteFromCart.funcDeleteFromCart != nil {
-		return mmDeleteFromCart.funcDeleteFromCart(userId, skuId)
+		return mmDeleteFromCart.funcDeleteFromCart(ctx, userId, skuId)
 	}
-	mmDeleteFromCart.t.Fatalf("Unexpected call to CartServiceMock.DeleteFromCart. %v %v", userId, skuId)
+	mmDeleteFromCart.t.Fatalf("Unexpected call to CartServiceMock.DeleteFromCart. %v %v %v", ctx, userId, skuId)
 	return
 }
 
@@ -1103,11 +1581,13 @@ type CartServiceMockGetItemsExpectation struct {
 
 // CartServiceMockGetItemsParams contains parameters of the cartService.GetItems
 type CartServiceMockGetItemsParams struct {
+	ctx    context.Context
 	userId int64
 }
 
 // CartServiceMockGetItemsParamPtrs contains pointers to parameters of the cartService.GetItems
 type CartServiceMockGetItemsParamPtrs struct {
+	ctx    *context.Context
 	userId *int64
 }
 
@@ -1120,6 +1600,7 @@ type CartServiceMockGetItemsResults struct {
 // CartServiceMockGetItemsOrigins contains origins of expectations of the cartService.GetItems
 type CartServiceMockGetItemsExpectationOrigins struct {
 	origin       string
+	originCtx    string
 	originUserId string
 }
 
@@ -1134,7 +1615,7 @@ func (mmGetItems *mCartServiceMockGetItems) Optional() *mCartServiceMockGetItems
 }
 
 // Expect sets up expected params for cartService.GetItems
-func (mmGetItems *mCartServiceMockGetItems) Expect(userId int64) *mCartServiceMockGetItems {
+func (mmGetItems *mCartServiceMockGetItems) Expect(ctx context.Context, userId int64) *mCartServiceMockGetItems {
 	if mmGetItems.mock.funcGetItems != nil {
 		mmGetItems.mock.t.Fatalf("CartServiceMock.GetItems mock is already set by Set")
 	}
@@ -1147,7 +1628,7 @@ func (mmGetItems *mCartServiceMockGetItems) Expect(userId int64) *mCartServiceMo
 		mmGetItems.mock.t.Fatalf("CartServiceMock.GetItems mock is already set by ExpectParams functions")
 	}
 
-	mmGetItems.defaultExpectation.params = &CartServiceMockGetItemsParams{userId}
+	mmGetItems.defaultExpectation.params = &CartServiceMockGetItemsParams{ctx, userId}
 	mmGetItems.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
 	for _, e := range mmGetItems.expectations {
 		if minimock.Equal(e.params, mmGetItems.defaultExpectation.params) {
@@ -1158,8 +1639,31 @@ func (mmGetItems *mCartServiceMockGetItems) Expect(userId int64) *mCartServiceMo
 	return mmGetItems
 }
 
-// ExpectUserIdParam1 sets up expected param userId for cartService.GetItems
-func (mmGetItems *mCartServiceMockGetItems) ExpectUserIdParam1(userId int64) *mCartServiceMockGetItems {
+// ExpectCtxParam1 sets up expected param ctx for cartService.GetItems
+func (mmGetItems *mCartServiceMockGetItems) ExpectCtxParam1(ctx context.Context) *mCartServiceMockGetItems {
+	if mmGetItems.mock.funcGetItems != nil {
+		mmGetItems.mock.t.Fatalf("CartServiceMock.GetItems mock is already set by Set")
+	}
+
+	if mmGetItems.defaultExpectation == nil {
+		mmGetItems.defaultExpectation = &CartServiceMockGetItemsExpectation{}
+	}
+
+	if mmGetItems.defaultExpectation.params != nil {
+		mmGetItems.mock.t.Fatalf("CartServiceMock.GetItems mock is already set by Expect")
+	}
+
+	if mmGetItems.defaultExpectation.paramPtrs == nil {
+		mmGetItems.defaultExpectation.paramPtrs = &CartServiceMockGetItemsParamPtrs{}
+	}
+	mmGetItems.defaultExpectation.paramPtrs.ctx = &ctx
+	mmGetItems.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
+
+	return mmGetItems
+}
+
+// ExpectUserIdParam2 sets up expected param userId for cartService.GetItems
+func (mmGetItems *mCartServiceMockGetItems) ExpectUserIdParam2(userId int64) *mCartServiceMockGetItems {
 	if mmGetItems.mock.funcGetItems != nil {
 		mmGetItems.mock.t.Fatalf("CartServiceMock.GetItems mock is already set by Set")
 	}
@@ -1182,7 +1686,7 @@ func (mmGetItems *mCartServiceMockGetItems) ExpectUserIdParam1(userId int64) *mC
 }
 
 // Inspect accepts an inspector function that has same arguments as the cartService.GetItems
-func (mmGetItems *mCartServiceMockGetItems) Inspect(f func(userId int64)) *mCartServiceMockGetItems {
+func (mmGetItems *mCartServiceMockGetItems) Inspect(f func(ctx context.Context, userId int64)) *mCartServiceMockGetItems {
 	if mmGetItems.mock.inspectFuncGetItems != nil {
 		mmGetItems.mock.t.Fatalf("Inspect function is already set for CartServiceMock.GetItems")
 	}
@@ -1207,7 +1711,7 @@ func (mmGetItems *mCartServiceMockGetItems) Return(up1 *model.UserData, err erro
 }
 
 // Set uses given function f to mock the cartService.GetItems method
-func (mmGetItems *mCartServiceMockGetItems) Set(f func(userId int64) (up1 *model.UserData, err error)) *CartServiceMock {
+func (mmGetItems *mCartServiceMockGetItems) Set(f func(ctx context.Context, userId int64) (up1 *model.UserData, err error)) *CartServiceMock {
 	if mmGetItems.defaultExpectation != nil {
 		mmGetItems.mock.t.Fatalf("Default expectation is already set for the cartService.GetItems method")
 	}
@@ -1223,14 +1727,14 @@ func (mmGetItems *mCartServiceMockGetItems) Set(f func(userId int64) (up1 *model
 
 // When sets expectation for the cartService.GetItems which will trigger the result defined by the following
 // Then helper
-func (mmGetItems *mCartServiceMockGetItems) When(userId int64) *CartServiceMockGetItemsExpectation {
+func (mmGetItems *mCartServiceMockGetItems) When(ctx context.Context, userId int64) *CartServiceMockGetItemsExpectation {
 	if mmGetItems.mock.funcGetItems != nil {
 		mmGetItems.mock.t.Fatalf("CartServiceMock.GetItems mock is already set by Set")
 	}
 
 	expectation := &CartServiceMockGetItemsExpectation{
 		mock:               mmGetItems.mock,
-		params:             &CartServiceMockGetItemsParams{userId},
+		params:             &CartServiceMockGetItemsParams{ctx, userId},
 		expectationOrigins: CartServiceMockGetItemsExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
 	mmGetItems.expectations = append(mmGetItems.expectations, expectation)
@@ -1265,17 +1769,17 @@ func (mmGetItems *mCartServiceMockGetItems) invocationsDone() bool {
 }
 
 // GetItems implements mm_handler.cartService
-func (mmGetItems *CartServiceMock) GetItems(userId int64) (up1 *model.UserData, err error) {
+func (mmGetItems *CartServiceMock) GetItems(ctx context.Context, userId int64) (up1 *model.UserData, err error) {
 	mm_atomic.AddUint64(&mmGetItems.beforeGetItemsCounter, 1)
 	defer mm_atomic.AddUint64(&mmGetItems.afterGetItemsCounter, 1)
 
 	mmGetItems.t.Helper()
 
 	if mmGetItems.inspectFuncGetItems != nil {
-		mmGetItems.inspectFuncGetItems(userId)
+		mmGetItems.inspectFuncGetItems(ctx, userId)
 	}
 
-	mm_params := CartServiceMockGetItemsParams{userId}
+	mm_params := CartServiceMockGetItemsParams{ctx, userId}
 
 	// Record call args
 	mmGetItems.GetItemsMock.mutex.Lock()
@@ -1294,9 +1798,14 @@ func (mmGetItems *CartServiceMock) GetItems(userId int64) (up1 *model.UserData, 
 		mm_want := mmGetItems.GetItemsMock.defaultExpectation.params
 		mm_want_ptrs := mmGetItems.GetItemsMock.defaultExpectation.paramPtrs
 
-		mm_got := CartServiceMockGetItemsParams{userId}
+		mm_got := CartServiceMockGetItemsParams{ctx, userId}
 
 		if mm_want_ptrs != nil {
+
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmGetItems.t.Errorf("CartServiceMock.GetItems got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmGetItems.GetItemsMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
 
 			if mm_want_ptrs.userId != nil && !minimock.Equal(*mm_want_ptrs.userId, mm_got.userId) {
 				mmGetItems.t.Errorf("CartServiceMock.GetItems got unexpected parameter userId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
@@ -1315,9 +1824,9 @@ func (mmGetItems *CartServiceMock) GetItems(userId int64) (up1 *model.UserData, 
 		return (*mm_results).up1, (*mm_results).err
 	}
 	if mmGetItems.funcGetItems != nil {
-		return mmGetItems.funcGetItems(userId)
+		return mmGetItems.funcGetItems(ctx, userId)
 	}
-	mmGetItems.t.Fatalf("Unexpected call to CartServiceMock.GetItems. %v", userId)
+	mmGetItems.t.Fatalf("Unexpected call to CartServiceMock.GetItems. %v %v", ctx, userId)
 	return
 }
 
@@ -1389,50 +1898,52 @@ func (m *CartServiceMock) MinimockGetItemsInspect() {
 	}
 }
 
-type mCartServiceMockGetProduct struct {
+type mCartServiceMockPayOrder struct {
 	optional           bool
 	mock               *CartServiceMock
-	defaultExpectation *CartServiceMockGetProductExpectation
-	expectations       []*CartServiceMockGetProductExpectation
+	defaultExpectation *CartServiceMockPayOrderExpectation
+	expectations       []*CartServiceMockPayOrderExpectation
 
-	callArgs []*CartServiceMockGetProductParams
+	callArgs []*CartServiceMockPayOrderParams
 	mutex    sync.RWMutex
 
 	expectedInvocations       uint64
 	expectedInvocationsOrigin string
 }
 
-// CartServiceMockGetProductExpectation specifies expectation struct of the cartService.GetProduct
-type CartServiceMockGetProductExpectation struct {
+// CartServiceMockPayOrderExpectation specifies expectation struct of the cartService.PayOrder
+type CartServiceMockPayOrderExpectation struct {
 	mock               *CartServiceMock
-	params             *CartServiceMockGetProductParams
-	paramPtrs          *CartServiceMockGetProductParamPtrs
-	expectationOrigins CartServiceMockGetProductExpectationOrigins
-	results            *CartServiceMockGetProductResults
+	params             *CartServiceMockPayOrderParams
+	paramPtrs          *CartServiceMockPayOrderParamPtrs
+	expectationOrigins CartServiceMockPayOrderExpectationOrigins
+	results            *CartServiceMockPayOrderResults
 	returnOrigin       string
 	Counter            uint64
 }
 
-// CartServiceMockGetProductParams contains parameters of the cartService.GetProduct
-type CartServiceMockGetProductParams struct {
-	productId int64
+// CartServiceMockPayOrderParams contains parameters of the cartService.PayOrder
+type CartServiceMockPayOrderParams struct {
+	ctx     context.Context
+	orderId int64
 }
 
-// CartServiceMockGetProductParamPtrs contains pointers to parameters of the cartService.GetProduct
-type CartServiceMockGetProductParamPtrs struct {
-	productId *int64
+// CartServiceMockPayOrderParamPtrs contains pointers to parameters of the cartService.PayOrder
+type CartServiceMockPayOrderParamPtrs struct {
+	ctx     *context.Context
+	orderId *int64
 }
 
-// CartServiceMockGetProductResults contains results of the cartService.GetProduct
-type CartServiceMockGetProductResults struct {
-	pp1 *model.Product
+// CartServiceMockPayOrderResults contains results of the cartService.PayOrder
+type CartServiceMockPayOrderResults struct {
 	err error
 }
 
-// CartServiceMockGetProductOrigins contains origins of expectations of the cartService.GetProduct
-type CartServiceMockGetProductExpectationOrigins struct {
-	origin          string
-	originProductId string
+// CartServiceMockPayOrderOrigins contains origins of expectations of the cartService.PayOrder
+type CartServiceMockPayOrderExpectationOrigins struct {
+	origin        string
+	originCtx     string
+	originOrderId string
 }
 
 // Marks this method to be optional. The default behavior of any method with Return() is '1 or more', meaning
@@ -1440,264 +1951,292 @@ type CartServiceMockGetProductExpectationOrigins struct {
 // Optional() makes method check to work in '0 or more' mode.
 // It is NOT RECOMMENDED to use this option unless you really need it, as default behaviour helps to
 // catch the problems when the expected method call is totally skipped during test run.
-func (mmGetProduct *mCartServiceMockGetProduct) Optional() *mCartServiceMockGetProduct {
-	mmGetProduct.optional = true
-	return mmGetProduct
+func (mmPayOrder *mCartServiceMockPayOrder) Optional() *mCartServiceMockPayOrder {
+	mmPayOrder.optional = true
+	return mmPayOrder
 }
 
-// Expect sets up expected params for cartService.GetProduct
-func (mmGetProduct *mCartServiceMockGetProduct) Expect(productId int64) *mCartServiceMockGetProduct {
-	if mmGetProduct.mock.funcGetProduct != nil {
-		mmGetProduct.mock.t.Fatalf("CartServiceMock.GetProduct mock is already set by Set")
+// Expect sets up expected params for cartService.PayOrder
+func (mmPayOrder *mCartServiceMockPayOrder) Expect(ctx context.Context, orderId int64) *mCartServiceMockPayOrder {
+	if mmPayOrder.mock.funcPayOrder != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by Set")
 	}
 
-	if mmGetProduct.defaultExpectation == nil {
-		mmGetProduct.defaultExpectation = &CartServiceMockGetProductExpectation{}
+	if mmPayOrder.defaultExpectation == nil {
+		mmPayOrder.defaultExpectation = &CartServiceMockPayOrderExpectation{}
 	}
 
-	if mmGetProduct.defaultExpectation.paramPtrs != nil {
-		mmGetProduct.mock.t.Fatalf("CartServiceMock.GetProduct mock is already set by ExpectParams functions")
+	if mmPayOrder.defaultExpectation.paramPtrs != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by ExpectParams functions")
 	}
 
-	mmGetProduct.defaultExpectation.params = &CartServiceMockGetProductParams{productId}
-	mmGetProduct.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
-	for _, e := range mmGetProduct.expectations {
-		if minimock.Equal(e.params, mmGetProduct.defaultExpectation.params) {
-			mmGetProduct.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmGetProduct.defaultExpectation.params)
+	mmPayOrder.defaultExpectation.params = &CartServiceMockPayOrderParams{ctx, orderId}
+	mmPayOrder.defaultExpectation.expectationOrigins.origin = minimock.CallerInfo(1)
+	for _, e := range mmPayOrder.expectations {
+		if minimock.Equal(e.params, mmPayOrder.defaultExpectation.params) {
+			mmPayOrder.mock.t.Fatalf("Expectation set by When has same params: %#v", *mmPayOrder.defaultExpectation.params)
 		}
 	}
 
-	return mmGetProduct
+	return mmPayOrder
 }
 
-// ExpectProductIdParam1 sets up expected param productId for cartService.GetProduct
-func (mmGetProduct *mCartServiceMockGetProduct) ExpectProductIdParam1(productId int64) *mCartServiceMockGetProduct {
-	if mmGetProduct.mock.funcGetProduct != nil {
-		mmGetProduct.mock.t.Fatalf("CartServiceMock.GetProduct mock is already set by Set")
+// ExpectCtxParam1 sets up expected param ctx for cartService.PayOrder
+func (mmPayOrder *mCartServiceMockPayOrder) ExpectCtxParam1(ctx context.Context) *mCartServiceMockPayOrder {
+	if mmPayOrder.mock.funcPayOrder != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by Set")
 	}
 
-	if mmGetProduct.defaultExpectation == nil {
-		mmGetProduct.defaultExpectation = &CartServiceMockGetProductExpectation{}
+	if mmPayOrder.defaultExpectation == nil {
+		mmPayOrder.defaultExpectation = &CartServiceMockPayOrderExpectation{}
 	}
 
-	if mmGetProduct.defaultExpectation.params != nil {
-		mmGetProduct.mock.t.Fatalf("CartServiceMock.GetProduct mock is already set by Expect")
+	if mmPayOrder.defaultExpectation.params != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by Expect")
 	}
 
-	if mmGetProduct.defaultExpectation.paramPtrs == nil {
-		mmGetProduct.defaultExpectation.paramPtrs = &CartServiceMockGetProductParamPtrs{}
+	if mmPayOrder.defaultExpectation.paramPtrs == nil {
+		mmPayOrder.defaultExpectation.paramPtrs = &CartServiceMockPayOrderParamPtrs{}
 	}
-	mmGetProduct.defaultExpectation.paramPtrs.productId = &productId
-	mmGetProduct.defaultExpectation.expectationOrigins.originProductId = minimock.CallerInfo(1)
+	mmPayOrder.defaultExpectation.paramPtrs.ctx = &ctx
+	mmPayOrder.defaultExpectation.expectationOrigins.originCtx = minimock.CallerInfo(1)
 
-	return mmGetProduct
+	return mmPayOrder
 }
 
-// Inspect accepts an inspector function that has same arguments as the cartService.GetProduct
-func (mmGetProduct *mCartServiceMockGetProduct) Inspect(f func(productId int64)) *mCartServiceMockGetProduct {
-	if mmGetProduct.mock.inspectFuncGetProduct != nil {
-		mmGetProduct.mock.t.Fatalf("Inspect function is already set for CartServiceMock.GetProduct")
+// ExpectOrderIdParam2 sets up expected param orderId for cartService.PayOrder
+func (mmPayOrder *mCartServiceMockPayOrder) ExpectOrderIdParam2(orderId int64) *mCartServiceMockPayOrder {
+	if mmPayOrder.mock.funcPayOrder != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by Set")
 	}
 
-	mmGetProduct.mock.inspectFuncGetProduct = f
+	if mmPayOrder.defaultExpectation == nil {
+		mmPayOrder.defaultExpectation = &CartServiceMockPayOrderExpectation{}
+	}
 
-	return mmGetProduct
+	if mmPayOrder.defaultExpectation.params != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by Expect")
+	}
+
+	if mmPayOrder.defaultExpectation.paramPtrs == nil {
+		mmPayOrder.defaultExpectation.paramPtrs = &CartServiceMockPayOrderParamPtrs{}
+	}
+	mmPayOrder.defaultExpectation.paramPtrs.orderId = &orderId
+	mmPayOrder.defaultExpectation.expectationOrigins.originOrderId = minimock.CallerInfo(1)
+
+	return mmPayOrder
 }
 
-// Return sets up results that will be returned by cartService.GetProduct
-func (mmGetProduct *mCartServiceMockGetProduct) Return(pp1 *model.Product, err error) *CartServiceMock {
-	if mmGetProduct.mock.funcGetProduct != nil {
-		mmGetProduct.mock.t.Fatalf("CartServiceMock.GetProduct mock is already set by Set")
+// Inspect accepts an inspector function that has same arguments as the cartService.PayOrder
+func (mmPayOrder *mCartServiceMockPayOrder) Inspect(f func(ctx context.Context, orderId int64)) *mCartServiceMockPayOrder {
+	if mmPayOrder.mock.inspectFuncPayOrder != nil {
+		mmPayOrder.mock.t.Fatalf("Inspect function is already set for CartServiceMock.PayOrder")
 	}
 
-	if mmGetProduct.defaultExpectation == nil {
-		mmGetProduct.defaultExpectation = &CartServiceMockGetProductExpectation{mock: mmGetProduct.mock}
-	}
-	mmGetProduct.defaultExpectation.results = &CartServiceMockGetProductResults{pp1, err}
-	mmGetProduct.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
-	return mmGetProduct.mock
+	mmPayOrder.mock.inspectFuncPayOrder = f
+
+	return mmPayOrder
 }
 
-// Set uses given function f to mock the cartService.GetProduct method
-func (mmGetProduct *mCartServiceMockGetProduct) Set(f func(productId int64) (pp1 *model.Product, err error)) *CartServiceMock {
-	if mmGetProduct.defaultExpectation != nil {
-		mmGetProduct.mock.t.Fatalf("Default expectation is already set for the cartService.GetProduct method")
+// Return sets up results that will be returned by cartService.PayOrder
+func (mmPayOrder *mCartServiceMockPayOrder) Return(err error) *CartServiceMock {
+	if mmPayOrder.mock.funcPayOrder != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by Set")
 	}
 
-	if len(mmGetProduct.expectations) > 0 {
-		mmGetProduct.mock.t.Fatalf("Some expectations are already set for the cartService.GetProduct method")
+	if mmPayOrder.defaultExpectation == nil {
+		mmPayOrder.defaultExpectation = &CartServiceMockPayOrderExpectation{mock: mmPayOrder.mock}
 	}
-
-	mmGetProduct.mock.funcGetProduct = f
-	mmGetProduct.mock.funcGetProductOrigin = minimock.CallerInfo(1)
-	return mmGetProduct.mock
+	mmPayOrder.defaultExpectation.results = &CartServiceMockPayOrderResults{err}
+	mmPayOrder.defaultExpectation.returnOrigin = minimock.CallerInfo(1)
+	return mmPayOrder.mock
 }
 
-// When sets expectation for the cartService.GetProduct which will trigger the result defined by the following
+// Set uses given function f to mock the cartService.PayOrder method
+func (mmPayOrder *mCartServiceMockPayOrder) Set(f func(ctx context.Context, orderId int64) (err error)) *CartServiceMock {
+	if mmPayOrder.defaultExpectation != nil {
+		mmPayOrder.mock.t.Fatalf("Default expectation is already set for the cartService.PayOrder method")
+	}
+
+	if len(mmPayOrder.expectations) > 0 {
+		mmPayOrder.mock.t.Fatalf("Some expectations are already set for the cartService.PayOrder method")
+	}
+
+	mmPayOrder.mock.funcPayOrder = f
+	mmPayOrder.mock.funcPayOrderOrigin = minimock.CallerInfo(1)
+	return mmPayOrder.mock
+}
+
+// When sets expectation for the cartService.PayOrder which will trigger the result defined by the following
 // Then helper
-func (mmGetProduct *mCartServiceMockGetProduct) When(productId int64) *CartServiceMockGetProductExpectation {
-	if mmGetProduct.mock.funcGetProduct != nil {
-		mmGetProduct.mock.t.Fatalf("CartServiceMock.GetProduct mock is already set by Set")
+func (mmPayOrder *mCartServiceMockPayOrder) When(ctx context.Context, orderId int64) *CartServiceMockPayOrderExpectation {
+	if mmPayOrder.mock.funcPayOrder != nil {
+		mmPayOrder.mock.t.Fatalf("CartServiceMock.PayOrder mock is already set by Set")
 	}
 
-	expectation := &CartServiceMockGetProductExpectation{
-		mock:               mmGetProduct.mock,
-		params:             &CartServiceMockGetProductParams{productId},
-		expectationOrigins: CartServiceMockGetProductExpectationOrigins{origin: minimock.CallerInfo(1)},
+	expectation := &CartServiceMockPayOrderExpectation{
+		mock:               mmPayOrder.mock,
+		params:             &CartServiceMockPayOrderParams{ctx, orderId},
+		expectationOrigins: CartServiceMockPayOrderExpectationOrigins{origin: minimock.CallerInfo(1)},
 	}
-	mmGetProduct.expectations = append(mmGetProduct.expectations, expectation)
+	mmPayOrder.expectations = append(mmPayOrder.expectations, expectation)
 	return expectation
 }
 
-// Then sets up cartService.GetProduct return parameters for the expectation previously defined by the When method
-func (e *CartServiceMockGetProductExpectation) Then(pp1 *model.Product, err error) *CartServiceMock {
-	e.results = &CartServiceMockGetProductResults{pp1, err}
+// Then sets up cartService.PayOrder return parameters for the expectation previously defined by the When method
+func (e *CartServiceMockPayOrderExpectation) Then(err error) *CartServiceMock {
+	e.results = &CartServiceMockPayOrderResults{err}
 	return e.mock
 }
 
-// Times sets number of times cartService.GetProduct should be invoked
-func (mmGetProduct *mCartServiceMockGetProduct) Times(n uint64) *mCartServiceMockGetProduct {
+// Times sets number of times cartService.PayOrder should be invoked
+func (mmPayOrder *mCartServiceMockPayOrder) Times(n uint64) *mCartServiceMockPayOrder {
 	if n == 0 {
-		mmGetProduct.mock.t.Fatalf("Times of CartServiceMock.GetProduct mock can not be zero")
+		mmPayOrder.mock.t.Fatalf("Times of CartServiceMock.PayOrder mock can not be zero")
 	}
-	mm_atomic.StoreUint64(&mmGetProduct.expectedInvocations, n)
-	mmGetProduct.expectedInvocationsOrigin = minimock.CallerInfo(1)
-	return mmGetProduct
+	mm_atomic.StoreUint64(&mmPayOrder.expectedInvocations, n)
+	mmPayOrder.expectedInvocationsOrigin = minimock.CallerInfo(1)
+	return mmPayOrder
 }
 
-func (mmGetProduct *mCartServiceMockGetProduct) invocationsDone() bool {
-	if len(mmGetProduct.expectations) == 0 && mmGetProduct.defaultExpectation == nil && mmGetProduct.mock.funcGetProduct == nil {
+func (mmPayOrder *mCartServiceMockPayOrder) invocationsDone() bool {
+	if len(mmPayOrder.expectations) == 0 && mmPayOrder.defaultExpectation == nil && mmPayOrder.mock.funcPayOrder == nil {
 		return true
 	}
 
-	totalInvocations := mm_atomic.LoadUint64(&mmGetProduct.mock.afterGetProductCounter)
-	expectedInvocations := mm_atomic.LoadUint64(&mmGetProduct.expectedInvocations)
+	totalInvocations := mm_atomic.LoadUint64(&mmPayOrder.mock.afterPayOrderCounter)
+	expectedInvocations := mm_atomic.LoadUint64(&mmPayOrder.expectedInvocations)
 
 	return totalInvocations > 0 && (expectedInvocations == 0 || expectedInvocations == totalInvocations)
 }
 
-// GetProduct implements mm_handler.cartService
-func (mmGetProduct *CartServiceMock) GetProduct(productId int64) (pp1 *model.Product, err error) {
-	mm_atomic.AddUint64(&mmGetProduct.beforeGetProductCounter, 1)
-	defer mm_atomic.AddUint64(&mmGetProduct.afterGetProductCounter, 1)
+// PayOrder implements mm_handler.cartService
+func (mmPayOrder *CartServiceMock) PayOrder(ctx context.Context, orderId int64) (err error) {
+	mm_atomic.AddUint64(&mmPayOrder.beforePayOrderCounter, 1)
+	defer mm_atomic.AddUint64(&mmPayOrder.afterPayOrderCounter, 1)
 
-	mmGetProduct.t.Helper()
+	mmPayOrder.t.Helper()
 
-	if mmGetProduct.inspectFuncGetProduct != nil {
-		mmGetProduct.inspectFuncGetProduct(productId)
+	if mmPayOrder.inspectFuncPayOrder != nil {
+		mmPayOrder.inspectFuncPayOrder(ctx, orderId)
 	}
 
-	mm_params := CartServiceMockGetProductParams{productId}
+	mm_params := CartServiceMockPayOrderParams{ctx, orderId}
 
 	// Record call args
-	mmGetProduct.GetProductMock.mutex.Lock()
-	mmGetProduct.GetProductMock.callArgs = append(mmGetProduct.GetProductMock.callArgs, &mm_params)
-	mmGetProduct.GetProductMock.mutex.Unlock()
+	mmPayOrder.PayOrderMock.mutex.Lock()
+	mmPayOrder.PayOrderMock.callArgs = append(mmPayOrder.PayOrderMock.callArgs, &mm_params)
+	mmPayOrder.PayOrderMock.mutex.Unlock()
 
-	for _, e := range mmGetProduct.GetProductMock.expectations {
+	for _, e := range mmPayOrder.PayOrderMock.expectations {
 		if minimock.Equal(*e.params, mm_params) {
 			mm_atomic.AddUint64(&e.Counter, 1)
-			return e.results.pp1, e.results.err
+			return e.results.err
 		}
 	}
 
-	if mmGetProduct.GetProductMock.defaultExpectation != nil {
-		mm_atomic.AddUint64(&mmGetProduct.GetProductMock.defaultExpectation.Counter, 1)
-		mm_want := mmGetProduct.GetProductMock.defaultExpectation.params
-		mm_want_ptrs := mmGetProduct.GetProductMock.defaultExpectation.paramPtrs
+	if mmPayOrder.PayOrderMock.defaultExpectation != nil {
+		mm_atomic.AddUint64(&mmPayOrder.PayOrderMock.defaultExpectation.Counter, 1)
+		mm_want := mmPayOrder.PayOrderMock.defaultExpectation.params
+		mm_want_ptrs := mmPayOrder.PayOrderMock.defaultExpectation.paramPtrs
 
-		mm_got := CartServiceMockGetProductParams{productId}
+		mm_got := CartServiceMockPayOrderParams{ctx, orderId}
 
 		if mm_want_ptrs != nil {
 
-			if mm_want_ptrs.productId != nil && !minimock.Equal(*mm_want_ptrs.productId, mm_got.productId) {
-				mmGetProduct.t.Errorf("CartServiceMock.GetProduct got unexpected parameter productId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-					mmGetProduct.GetProductMock.defaultExpectation.expectationOrigins.originProductId, *mm_want_ptrs.productId, mm_got.productId, minimock.Diff(*mm_want_ptrs.productId, mm_got.productId))
+			if mm_want_ptrs.ctx != nil && !minimock.Equal(*mm_want_ptrs.ctx, mm_got.ctx) {
+				mmPayOrder.t.Errorf("CartServiceMock.PayOrder got unexpected parameter ctx, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmPayOrder.PayOrderMock.defaultExpectation.expectationOrigins.originCtx, *mm_want_ptrs.ctx, mm_got.ctx, minimock.Diff(*mm_want_ptrs.ctx, mm_got.ctx))
+			}
+
+			if mm_want_ptrs.orderId != nil && !minimock.Equal(*mm_want_ptrs.orderId, mm_got.orderId) {
+				mmPayOrder.t.Errorf("CartServiceMock.PayOrder got unexpected parameter orderId, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+					mmPayOrder.PayOrderMock.defaultExpectation.expectationOrigins.originOrderId, *mm_want_ptrs.orderId, mm_got.orderId, minimock.Diff(*mm_want_ptrs.orderId, mm_got.orderId))
 			}
 
 		} else if mm_want != nil && !minimock.Equal(*mm_want, mm_got) {
-			mmGetProduct.t.Errorf("CartServiceMock.GetProduct got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
-				mmGetProduct.GetProductMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
+			mmPayOrder.t.Errorf("CartServiceMock.PayOrder got unexpected parameters, expected at\n%s:\nwant: %#v\n got: %#v%s\n",
+				mmPayOrder.PayOrderMock.defaultExpectation.expectationOrigins.origin, *mm_want, mm_got, minimock.Diff(*mm_want, mm_got))
 		}
 
-		mm_results := mmGetProduct.GetProductMock.defaultExpectation.results
+		mm_results := mmPayOrder.PayOrderMock.defaultExpectation.results
 		if mm_results == nil {
-			mmGetProduct.t.Fatal("No results are set for the CartServiceMock.GetProduct")
+			mmPayOrder.t.Fatal("No results are set for the CartServiceMock.PayOrder")
 		}
-		return (*mm_results).pp1, (*mm_results).err
+		return (*mm_results).err
 	}
-	if mmGetProduct.funcGetProduct != nil {
-		return mmGetProduct.funcGetProduct(productId)
+	if mmPayOrder.funcPayOrder != nil {
+		return mmPayOrder.funcPayOrder(ctx, orderId)
 	}
-	mmGetProduct.t.Fatalf("Unexpected call to CartServiceMock.GetProduct. %v", productId)
+	mmPayOrder.t.Fatalf("Unexpected call to CartServiceMock.PayOrder. %v %v", ctx, orderId)
 	return
 }
 
-// GetProductAfterCounter returns a count of finished CartServiceMock.GetProduct invocations
-func (mmGetProduct *CartServiceMock) GetProductAfterCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmGetProduct.afterGetProductCounter)
+// PayOrderAfterCounter returns a count of finished CartServiceMock.PayOrder invocations
+func (mmPayOrder *CartServiceMock) PayOrderAfterCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmPayOrder.afterPayOrderCounter)
 }
 
-// GetProductBeforeCounter returns a count of CartServiceMock.GetProduct invocations
-func (mmGetProduct *CartServiceMock) GetProductBeforeCounter() uint64 {
-	return mm_atomic.LoadUint64(&mmGetProduct.beforeGetProductCounter)
+// PayOrderBeforeCounter returns a count of CartServiceMock.PayOrder invocations
+func (mmPayOrder *CartServiceMock) PayOrderBeforeCounter() uint64 {
+	return mm_atomic.LoadUint64(&mmPayOrder.beforePayOrderCounter)
 }
 
-// Calls returns a list of arguments used in each call to CartServiceMock.GetProduct.
+// Calls returns a list of arguments used in each call to CartServiceMock.PayOrder.
 // The list is in the same order as the calls were made (i.e. recent calls have a higher index)
-func (mmGetProduct *mCartServiceMockGetProduct) Calls() []*CartServiceMockGetProductParams {
-	mmGetProduct.mutex.RLock()
+func (mmPayOrder *mCartServiceMockPayOrder) Calls() []*CartServiceMockPayOrderParams {
+	mmPayOrder.mutex.RLock()
 
-	argCopy := make([]*CartServiceMockGetProductParams, len(mmGetProduct.callArgs))
-	copy(argCopy, mmGetProduct.callArgs)
+	argCopy := make([]*CartServiceMockPayOrderParams, len(mmPayOrder.callArgs))
+	copy(argCopy, mmPayOrder.callArgs)
 
-	mmGetProduct.mutex.RUnlock()
+	mmPayOrder.mutex.RUnlock()
 
 	return argCopy
 }
 
-// MinimockGetProductDone returns true if the count of the GetProduct invocations corresponds
+// MinimockPayOrderDone returns true if the count of the PayOrder invocations corresponds
 // the number of defined expectations
-func (m *CartServiceMock) MinimockGetProductDone() bool {
-	if m.GetProductMock.optional {
+func (m *CartServiceMock) MinimockPayOrderDone() bool {
+	if m.PayOrderMock.optional {
 		// Optional methods provide '0 or more' call count restriction.
 		return true
 	}
 
-	for _, e := range m.GetProductMock.expectations {
+	for _, e := range m.PayOrderMock.expectations {
 		if mm_atomic.LoadUint64(&e.Counter) < 1 {
 			return false
 		}
 	}
 
-	return m.GetProductMock.invocationsDone()
+	return m.PayOrderMock.invocationsDone()
 }
 
-// MinimockGetProductInspect logs each unmet expectation
-func (m *CartServiceMock) MinimockGetProductInspect() {
-	for _, e := range m.GetProductMock.expectations {
+// MinimockPayOrderInspect logs each unmet expectation
+func (m *CartServiceMock) MinimockPayOrderInspect() {
+	for _, e := range m.PayOrderMock.expectations {
 		if mm_atomic.LoadUint64(&e.Counter) < 1 {
-			m.t.Errorf("Expected call to CartServiceMock.GetProduct at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
+			m.t.Errorf("Expected call to CartServiceMock.PayOrder at\n%s with params: %#v", e.expectationOrigins.origin, *e.params)
 		}
 	}
 
-	afterGetProductCounter := mm_atomic.LoadUint64(&m.afterGetProductCounter)
+	afterPayOrderCounter := mm_atomic.LoadUint64(&m.afterPayOrderCounter)
 	// if default expectation was set then invocations count should be greater than zero
-	if m.GetProductMock.defaultExpectation != nil && afterGetProductCounter < 1 {
-		if m.GetProductMock.defaultExpectation.params == nil {
-			m.t.Errorf("Expected call to CartServiceMock.GetProduct at\n%s", m.GetProductMock.defaultExpectation.returnOrigin)
+	if m.PayOrderMock.defaultExpectation != nil && afterPayOrderCounter < 1 {
+		if m.PayOrderMock.defaultExpectation.params == nil {
+			m.t.Errorf("Expected call to CartServiceMock.PayOrder at\n%s", m.PayOrderMock.defaultExpectation.returnOrigin)
 		} else {
-			m.t.Errorf("Expected call to CartServiceMock.GetProduct at\n%s with params: %#v", m.GetProductMock.defaultExpectation.expectationOrigins.origin, *m.GetProductMock.defaultExpectation.params)
+			m.t.Errorf("Expected call to CartServiceMock.PayOrder at\n%s with params: %#v", m.PayOrderMock.defaultExpectation.expectationOrigins.origin, *m.PayOrderMock.defaultExpectation.params)
 		}
 	}
 	// if func was set then invocations count should be greater than zero
-	if m.funcGetProduct != nil && afterGetProductCounter < 1 {
-		m.t.Errorf("Expected call to CartServiceMock.GetProduct at\n%s", m.funcGetProductOrigin)
+	if m.funcPayOrder != nil && afterPayOrderCounter < 1 {
+		m.t.Errorf("Expected call to CartServiceMock.PayOrder at\n%s", m.funcPayOrderOrigin)
 	}
 
-	if !m.GetProductMock.invocationsDone() && afterGetProductCounter > 0 {
-		m.t.Errorf("Expected %d calls to CartServiceMock.GetProduct at\n%s but found %d calls",
-			mm_atomic.LoadUint64(&m.GetProductMock.expectedInvocations), m.GetProductMock.expectedInvocationsOrigin, afterGetProductCounter)
+	if !m.PayOrderMock.invocationsDone() && afterPayOrderCounter > 0 {
+		m.t.Errorf("Expected %d calls to CartServiceMock.PayOrder at\n%s but found %d calls",
+			mm_atomic.LoadUint64(&m.PayOrderMock.expectedInvocations), m.PayOrderMock.expectedInvocationsOrigin, afterPayOrderCounter)
 	}
 }
 
@@ -1707,13 +2246,15 @@ func (m *CartServiceMock) MinimockFinish() {
 		if !m.minimockDone() {
 			m.MinimockAddItemToCartInspect()
 
-			m.MinimockDeleteAllFromCartInspect()
+			m.MinimockCancelOrderInspect()
+
+			m.MinimockCheckoutInspect()
 
 			m.MinimockDeleteFromCartInspect()
 
 			m.MinimockGetItemsInspect()
 
-			m.MinimockGetProductInspect()
+			m.MinimockPayOrderInspect()
 		}
 	})
 }
@@ -1738,8 +2279,9 @@ func (m *CartServiceMock) minimockDone() bool {
 	done := true
 	return done &&
 		m.MinimockAddItemToCartDone() &&
-		m.MinimockDeleteAllFromCartDone() &&
+		m.MinimockCancelOrderDone() &&
+		m.MinimockCheckoutDone() &&
 		m.MinimockDeleteFromCartDone() &&
 		m.MinimockGetItemsDone() &&
-		m.MinimockGetProductDone()
+		m.MinimockPayOrderDone()
 }
