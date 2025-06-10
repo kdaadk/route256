@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"route256/loms/internal/kafka"
 	"route256/loms/internal/model"
 	"route256/loms/internal/repository"
 	proto "route256/loms/proto"
@@ -39,7 +40,8 @@ func (s *ServiceIntegrationTestSuite) SetupSuite() {
 	txManager := repository.NewTxManager(s.db)
 	ordersRepo := repository.NewOrdersRepository(s.db)
 	stocksRepo := repository.NewStocksRepository(s.db)
-	s.service = NewService(ordersRepo, stocksRepo, txManager)
+	kafkaCli, err := kafka.NewKafkaProducer("loms.order-events")
+	s.service = NewService(ordersRepo, stocksRepo, txManager, kafkaCli)
 }
 
 func (s *ServiceIntegrationTestSuite) TearDownTest() {

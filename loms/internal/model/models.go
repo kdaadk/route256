@@ -35,3 +35,8 @@ const (
 )
 
 type OrderStatus int64
+
+type OrderChangedStatusEvent struct {
+	OrderId   int64       `db:"id" json:"orderId"`
+	NewStatus OrderStatus `db:"status" json:"newStatus"`
+}

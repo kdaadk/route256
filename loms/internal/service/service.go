@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/jackc/pgx/v5"
 	"route256/loms/internal/model"
 	proto "route256/loms/proto"
@@ -24,17 +25,27 @@ type TxManager interface {
 	Tx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error, opts *pgx.TxOptions) error
 }
 
-type Service struct {
-	ordersRepo ordersRepo
-	stocksRepo stocksRepo
-	txManager  TxManager
+type KafkaProducer interface {
+	SendMessage(key, value string) error
 }
 
-func NewService(ordersRepo ordersRepo, stocksRepo stocksRepo, txManager TxManager) *Service {
+type Service struct {
+	ordersRepo    ordersRepo
+	stocksRepo    stocksRepo
+	txManager     TxManager
+	kafkaProducer KafkaProducer
+}
+
+func NewService(
+	ordersRepo ordersRepo,
+	stocksRepo stocksRepo,
+	txManager TxManager,
+	kafkaProducer KafkaProducer) *Service {
 	return &Service{
-		ordersRepo: ordersRepo,
-		stocksRepo: stocksRepo,
-		txManager:  txManager,
+		ordersRepo:    ordersRepo,
+		stocksRepo:    stocksRepo,
+		txManager:     txManager,
+		kafkaProducer: kafkaProducer,
 	}
 }
 
@@ -61,6 +72,11 @@ func (s Service) CreateOrder(req *proto.CreateOrderRequest) (int64, error) {
 		if err != nil {
 			return err
 		}
+		err = s.kafkaProducer.SendMessage(
+			fmt.Sprintf("%d", orderId),
+			fmt.Sprintf("%v", &model.OrderChangedStatusEvent{
+				OrderId:   orderId,
+				NewStatus: model.OrderStatus_AwaitingPayment}))
 
 		return nil
 	}, nil)
@@ -94,6 +110,11 @@ func (s Service) PayOrder(req *proto.PayOrderRequest) error {
 		if err != nil {
 			return err
 		}
+		err = s.kafkaProducer.SendMessage(
+			fmt.Sprintf("%d", order.OrderId),
+			fmt.Sprintf("%v", &model.OrderChangedStatusEvent{
+				OrderId:   order.OrderId,
+				NewStatus: model.OrderStatus_Paid}))
 
 		return nil
 	}, nil)
@@ -123,6 +144,11 @@ func (s Service) CancelOrder(req *proto.CancelOrderRequest) error {
 		if err != nil {
 			return err
 		}
+		err = s.kafkaProducer.SendMessage(
+			fmt.Sprintf("%d", order.OrderId),
+			fmt.Sprintf("%v", &model.OrderChangedStatusEvent{
+				OrderId:   order.OrderId,
+				NewStatus: model.OrderStatus_Cancelled}))
 
 		return nil
 	}, nil)

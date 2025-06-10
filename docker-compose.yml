@@ -1,15 +1,16 @@
 version: "3.8"
 
-x-postgres-common:
-  &postgres-common
+x-postgres-common: &postgres-common
   image: postgres:16-alpine
   user: postgres
   restart: always
   healthcheck:
-    test: 'pg_isready -U user --dbname=postgres'
+    test: 'pg_isready -U loms --dbname=loms'
     interval: 10s
     timeout: 5s
     retries: 5
+  networks:
+    - kafka-net
 
 services:
   cart:
@@ -20,6 +21,8 @@ services:
     command: ["./cartbuild"]
     depends_on:
       - loms
+    networks:
+      - kafka-net
 
   loms:
     build:
@@ -30,14 +33,17 @@ services:
     depends_on:
       - postgres_primary
       - postgres_replica
+      - kafka0
     environment:
-      DB_MASTER_URL: "postgres://loms:loms@localhost:5432/loms?sslmode=disable"
-      DB_REPLICA_URL: "postgres://loms:loms@localhost:5432/loms?sslmode=disable"
+      DB_MASTER_URL: "postgres://loms:loms@postgres_primary:5432/loms?sslmode=disable"
+      DB_REPLICA_URL: "postgres://loms:loms@postgres_replica:5432/loms?sslmode=disable"
+    networks:
+      - kafka-net
 
   postgres_primary:
     <<: *postgres-common
     ports:
-      - 5432:5432
+      - "5432:5432"
     environment:
       POSTGRES_USER: loms
       POSTGRES_DB: loms
@@ -45,11 +51,11 @@ services:
       POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     command: |
-      postgres 
-      -c wal_level=replica 
-      -c hot_standby=on 
-      -c max_wal_senders=10 
-      -c max_replication_slots=10 
+      postgres
+      -c wal_level=replica
+      -c hot_standby=on
+      -c max_wal_senders=10
+      -c max_replication_slots=10
       -c hot_standby_feedback=on
     volumes:
       - ./postgres/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
@@ -57,7 +63,7 @@ services:
   postgres_replica:
     <<: *postgres-common
     ports:
-      - 5433:5432
+      - "5433:5432"
     environment:
       PGUSER: replicator
       PGPASSWORD: replicator_password
@@ -65,8 +71,8 @@ services:
       bash -c "
       until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=postgres_primary --port=5432
       do
-      echo 'Waiting for primary to connect...'
-      sleep 1s
+        echo 'Waiting for primary to connect...'
+        sleep 1s
       done
       echo 'Backup done, starting replica...'
       chmod 0700 /var/lib/postgresql/data
@@ -74,3 +80,81 @@ services:
       "
     depends_on:
       - postgres_primary
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka0:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks:
+      - kafka-net
+
+  kafka0:
+    container_name: kafka
+    image: confluentinc/cp-kafka:7.7.1.arm64
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka0:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka0:29093
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka0:29092"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    networks:
+      - kafka-net
+
+  kafka-init-topics:
+    container_name: init-topics
+    image: confluentinc/cp-kafka:7.5.4.arm64
+    depends_on:
+      - kafka0
+    command:
+      - "bash"
+      - "-c"
+      - |
+        echo 'Waiting for Kafka to be ready...'
+        cub kafka-ready -b kafka0:29092 1 30
+        kafka-topics --create --topic loms.order-events \
+          --partitions 2 \
+          --replication-factor 1 \
+          --if-not-exists \
+          --bootstrap-server kafka0:29092
+    networks:
+      - kafka-net
+
+  notifier:
+    build: ./notifier
+    working_dir: /app
+    command: ["./notifierbuild"]
+    environment:
+      KAFKA_BROKERS: "kafka0:29092"
+      KAFKA_GROUP_ID: "notifier-group"
+      KAFKA_TOPIC: "loms.order-events"
+    depends_on:
+      kafka0:
+        condition: service_healthy
+      kafka-init-topics:
+        condition: service_completed_successfully
+    deploy:
+      replicas: 3
+    networks:
+      - kafka-net
+
+networks:
+  kafka-net:
+    driver: bridge

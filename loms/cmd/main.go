@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"route256/loms/internal/handler"
+	"route256/loms/internal/kafka"
 	"route256/loms/internal/model"
 	"route256/loms/internal/mw"
 	"route256/loms/internal/repository"
@@ -28,7 +29,12 @@ func main() {
 	txManager := repository.NewTxManager(dbPool)
 	ordersRepo := repository.NewOrdersRepository(dbPool)
 	stocksRepo := repository.NewStocksRepository(dbPool)
-	serv := service.NewService(ordersRepo, stocksRepo, txManager)
+	kafkaProducer, err := kafka.NewKafkaProducer("loms.order-events")
+	if err != nil {
+		slog.Error("Failed to connect to kafka")
+		return
+	}
+	serv := service.NewService(ordersRepo, stocksRepo, txManager, kafkaProducer)
 	hand := handler.NewHandler(serv)
 
 	lis, err := net.Listen("tcp", ":50051")
