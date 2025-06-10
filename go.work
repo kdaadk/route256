@@ -4,4 +4,6 @@ use (
 	./cart
 	loms
 	notifier
+	./pkg/tracing
+	./pkg/logger
 )

@@ -26,8 +26,8 @@ services:
 
   loms:
     build:
-      context: ./loms
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: loms/Dockerfile
     working_dir: /app
     command: ["./lomsbuild"]
     depends_on:
@@ -154,6 +154,40 @@ services:
       replicas: 3
     networks:
       - kafka-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.56
+    ports:
+      - "16686:16686" #ui
+      - "4317:4317" #collector grpc
+
+volumes:
+  prometheus_data:
+  grafana_data:
 
 networks:
   kafka-net:

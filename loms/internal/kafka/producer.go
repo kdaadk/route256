@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/IBM/sarama"
 	"log/slog"
+	"net"
 	"os"
 	"time"
 )
@@ -20,7 +21,6 @@ func NewKafkaProducer(topic string) (*KafkaProducer, error) {
 	config.Producer.Retry.Max = 5
 	config.Producer.Retry.Backoff = 1 * time.Second
 	config.Net.DialTimeout = 10 * time.Second
-	config.Producer.Idempotent = true
 
 	broker := getBrokerAddress()
 
@@ -62,10 +62,9 @@ func getBrokerAddress() string {
 		return broker
 	}
 
-	panic("KAFKA_BROKER environment variable not set")
-	//if _, err := net.LookupHost("kafka0"); err == nil {
-	//	return "kafka0:29092"
-	//}
-	//
-	//return "localhost:9092"
+	if _, err := net.LookupHost("kafka0"); err == nil {
+		return "kafka0:29092"
+	}
+
+	return "localhost:9092"
 }

@@ -3,8 +3,9 @@ package handler
 import (
 	"context"
 	"errors"
+	myLogger "github.com/kdaadk/route256/pkg/logger"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"log/slog"
 	"route256/loms/internal/mappers"
 	"route256/loms/internal/service"
 	"route256/loms/proto"
@@ -14,6 +15,7 @@ var _ proto.LomsServiceServer = (*Handler)(nil)
 
 type Handler struct {
 	Service *service.Service
+	Tracer  trace.Tracer
 	proto.UnimplementedLomsServiceServer
 }
 
@@ -22,7 +24,9 @@ func NewHandler(service *service.Service) *Handler {
 }
 
 func (h *Handler) CreateOrder(ctx context.Context, req *proto.CreateOrderRequest) (*proto.CreateOrderResponse, error) {
-	slog.Info("handler", "CreateOrder", req)
+	h.Tracer.Start(ctx, "create_order")
+	myLogger.InfoContext(ctx, "create_order")
+
 	orderId, err := h.Service.CreateOrder(req)
 	if err != nil {
 		return nil, err

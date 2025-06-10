@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
+	myLogger "github.com/kdaadk/route256/pkg/logger"
+	"github.com/kdaadk/route256/pkg/tracing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.uber.org/zap"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -36,12 +40,34 @@ func (s *ServiceIntegrationTestSuite) SetupSuite() {
 		s.FailNow("Failed to setup test database", err)
 	}
 
+	//tracing
+	tp, err := initTracer()
+	defer tracing.ShutdownTracer(tp)
+	if err != nil {
+		myLogger.ErrorContext(context.Background(), "Failed to create tracer", zap.Error(err))
+		return
+	}
+
 	s.ctx = context.Background()
 	txManager := repository.NewTxManager(s.db)
 	ordersRepo := repository.NewOrdersRepository(s.db)
 	stocksRepo := repository.NewStocksRepository(s.db)
 	kafkaCli, err := kafka.NewKafkaProducer("loms.order-events")
+	if err != nil {
+		s.FailNow("Failed to create kafka producer", err)
+	}
 	s.service = NewService(ordersRepo, stocksRepo, txManager, kafkaCli)
+}
+
+func initTracer() (*sdktrace.TracerProvider, error) {
+	host := "localhost"
+	port := "5432"
+	serviceName := "loms"
+	tp, err := tracing.InitTracer(host+":"+port, serviceName, tracing.GRPCTransport)
+	if err != nil {
+		return nil, err
+	}
+	return tp, nil
 }
 
 func (s *ServiceIntegrationTestSuite) TearDownTest() {

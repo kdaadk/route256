@@ -3,7 +3,8 @@ package loms
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	myLogger "github.com/kdaadk/route256/pkg/logger"
+	"go.uber.org/zap"
 	"route256/cart/internal/model"
 
 	"route256/cart/vendor-proto/route256/loms"
@@ -17,7 +18,7 @@ func (c *Client) CreateOrder(ctx context.Context, userId int64, items []model.Or
 
 	res, err := c.client.CreateOrder(ctx, req)
 	if err != nil {
-		slog.Error(err.Error())
+		myLogger.ErrorContext(ctx, "Error creating order", zap.Error(err))
 		return 0, fmt.Errorf("failed to create order: %w", err)
 	}
 

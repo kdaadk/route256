@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"github.com/jackc/pgx/v5/pgxpool"
+	myLogger "github.com/kdaadk/route256/pkg/logger"
+	"github.com/kdaadk/route256/pkg/tracing"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -20,18 +24,36 @@ import (
 )
 
 func main() {
-	dbPool, err := initDBPools()
+	// logging
+	config := zap.NewDevelopmentConfig()
+	config.ErrorOutputPaths = []string{"output"}
+	config.Level.SetLevel(zapcore.InfoLevel)
+	logger := myLogger.NewMyLogger(config)
+	defer logger.Sync()
+
+	//tracing
+	tp, err := initTracer()
+	defer tracing.ShutdownTracer(tp)
+
 	if err != nil {
-		slog.Error("Failed to connect to database")
+		myLogger.ErrorContext(context.Background(), "Failed to create tracer", zap.Error(err))
 		return
 	}
 
+	// postgres
+	dbPool, err := initDBPools()
+	if err != nil {
+		myLogger.ErrorContext(context.Background(), "Error connecting to database", zap.Error(err))
+		return
+	}
+
+	// server
 	txManager := repository.NewTxManager(dbPool)
 	ordersRepo := repository.NewOrdersRepository(dbPool)
 	stocksRepo := repository.NewStocksRepository(dbPool)
 	kafkaProducer, err := kafka.NewKafkaProducer("loms.order-events")
 	if err != nil {
-		slog.Error("Failed to connect to kafka")
+		myLogger.ErrorContext(context.Background(), "Failed to create kafka producer", zap.Error(err))
 		return
 	}
 	serv := service.NewService(ordersRepo, stocksRepo, txManager, kafkaProducer)
@@ -39,13 +61,14 @@ func main() {
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		slog.Error("failed to listen: %v", err)
+		myLogger.ErrorContext(context.Background(), "Failed to listen", zap.Error(err))
 		return
 	}
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			mw.RestoreFromPanic,
+			mw.Tracing,
 			mw.Log,
 			mw.Validate,
 		),
@@ -56,16 +79,27 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		slog.Info("🚀 Mock LOMS gRPC Service running on :50051")
-		if err := grpcServer.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			slog.Error("Failed to serve gRPC server", "error", err)
+		myLogger.InfoContext(context.Background(), "Starting gRPC server")
+		if err = grpcServer.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			myLogger.ErrorContext(context.Background(), "Failed to start gRPC server", zap.Error(err))
 		}
 	}()
 
 	<-stop
-	slog.Info("Shutting down gRPC server...")
+	myLogger.InfoContext(context.Background(), "Shutting down gRPC server")
 	grpcServer.GracefulStop()
-	slog.Info("Server gracefully stopped.")
+	myLogger.InfoContext(context.Background(), "Server gracefully stopped.")
+}
+
+func initTracer() (*sdktrace.TracerProvider, error) {
+	host := "localhost"
+	port := "5432"
+	serviceName := "loms"
+	tp, err := tracing.InitTracer(host+":"+port, serviceName, tracing.GRPCTransport)
+	if err != nil {
+		return nil, err
+	}
+	return tp, nil
 }
 
 func initDBPools() (*model.DBPools, error) {
