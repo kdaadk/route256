@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.opentelemetry.io/otel/trace"
 	"route256/cart/internal/model"
 	"route256/cart/pkg/errgroup"
 	"route256/cart/vendor-proto/route256/loms"
@@ -33,9 +34,13 @@ type Service struct {
 	cartRepo   cartRepo
 	productCli productCli
 	lomsCli    lomsCli
+	tracer     trace.Tracer
 }
 
 func (s Service) AddItemToCart(ctx context.Context, userId, skuId int64, count uint32) error {
+	ctx, span := s.tracer.Start(ctx, "Service.AddItemToCart")
+	defer span.End()
+
 	prod, err := s.productCli.GetProduct(ctx, skuId)
 	if err != nil {
 		return err
@@ -55,6 +60,10 @@ func (s Service) AddItemToCart(ctx context.Context, userId, skuId int64, count u
 		return err
 	}
 
+	if len(r.StockInfos) == 0 {
+		return errors.New("no stock infos")
+	}
+
 	if r.StockInfos[0].Count < count {
 		return errors.New(fmt.Sprintf("not enough stock for sku %d", skuId))
 	}
@@ -63,10 +72,15 @@ func (s Service) AddItemToCart(ctx context.Context, userId, skuId int64, count u
 }
 
 func (s Service) DeleteFromCart(ctx context.Context, userId int64, skuId int64) error {
+	ctx, span := s.tracer.Start(ctx, "Service.DeleteFromCart")
+	defer span.End()
+
 	return s.cartRepo.DeleteFromCart(ctx, userId, skuId)
 }
 
 func (s Service) GetItems(ctx context.Context, userId int64) (*model.UserData, error) {
+	ctx, span := s.tracer.Start(ctx, "Service.GetItems")
+	defer span.End()
 	dtoUserData, err := s.cartRepo.GetItems(ctx, userId)
 	if err != nil {
 		return nil, err
@@ -111,14 +125,23 @@ func (s Service) GetItems(ctx context.Context, userId int64) (*model.UserData, e
 }
 
 func (s Service) PayOrder(ctx context.Context, orderId int64) error {
+	ctx, span := s.tracer.Start(ctx, "Service.PayOrder")
+	defer span.End()
+
 	return s.lomsCli.PayOrder(ctx, orderId)
 }
 
 func (s Service) CancelOrder(ctx context.Context, orderId int64) error {
+	ctx, span := s.tracer.Start(ctx, "Service.CancelOrder")
+	defer span.End()
+
 	return s.lomsCli.CancelOrder(ctx, orderId)
 }
 
 func (s Service) Checkout(ctx context.Context, userId int64) (int64, error) {
+	ctx, span := s.tracer.Start(ctx, "Service.Checkout")
+	defer span.End()
+
 	userData, err := s.cartRepo.GetItems(ctx, userId)
 	if err != nil {
 		return 0, err
@@ -141,10 +164,11 @@ func (s Service) Checkout(ctx context.Context, userId int64) (int64, error) {
 	return orderId, nil
 }
 
-func NewService(cartRepo cartRepo, productCli productCli, lomsCli lomsCli) *Service {
+func NewService(cartRepo cartRepo, productCli productCli, lomsCli lomsCli, tracer trace.Tracer) *Service {
 	return &Service{
 		cartRepo:   cartRepo,
 		productCli: productCli,
 		lomsCli:    lomsCli,
+		tracer:     tracer,
 	}
 }

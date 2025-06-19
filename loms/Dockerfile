@@ -2,22 +2,19 @@ FROM golang:1.23.2-alpine AS builder
 LABEL authors="dmiklopov"
 
 WORKDIR /app
-
-# Copy go.mod files and pkg dependencies
-COPY loms/go.mod loms/go.sum ./
-COPY pkg/ pkg/
+COPY . .
 
 RUN go mod download
+RUN go install github.com/pressly/goose/v3/cmd/goose@latest
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/lomsbuild ./cmd/
 
-# Copy loms source code
-COPY loms/cmd/ cmd/
-COPY loms/internal/ internal/
-# Add any other loms subdirectories you have
+#ADD https://github.com/grpc-ecosystem/grpc-health-probe/releases/latest/download/grpc_health_probe /usr/bin/grpc_health_probe
+#RUN chmod +x /usr/bin/grpc_health_probe
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o lomsbuild ./cmd/
-
-# Runtime stage
 FROM alpine:latest
 WORKDIR /app
+
+COPY --from=builder /go/bin/goose /app/bin/goose
+COPY migrations /app/migrations
 COPY --from=builder /app/lomsbuild .
-CMD ["./lomsbuild"]
+CMD ["app/lomsbuild"]

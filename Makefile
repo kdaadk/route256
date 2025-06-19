@@ -6,10 +6,6 @@ ENV_NAME="stage"
 compose-up:
 	docker-compose -p ${ENV_NAME} -f ${DOCKER_YML} up -d
 
-.PHONY: compose-down
-compose-down:
-	docker-compose -p ${ENV_NAME} -f ${DOCKER_YML} stop
-
 .PHONY: compose-rm
 compose-rm:
 	docker-compose -p ${ENV_NAME} -f ${DOCKER_YML} rm -fvs

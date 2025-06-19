@@ -6,6 +6,9 @@ import (
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"route256/cart/internal/model"
 	"route256/cart/internal/service/mocks"
 	proto "route256/cart/vendor-proto/route256/loms"
@@ -13,12 +16,25 @@ import (
 )
 
 func setupMocks(mc *minimock.Controller) (*mocks.CartRepoMock, *mocks.ProductClientMock, *mocks.LomsClientMock, *Service) {
+	tp, _ := newTestTracer()
+	otel.SetTracerProvider(tp)
+	tracer := tp.Tracer("cart-service-test")
+
 	repoMock := mocks.NewCartRepoMock(mc)
 	productClientMock := mocks.NewProductClientMock(mc)
 	lomsCliMock := mocks.NewLomsClientMock(mc)
-	s := NewService(repoMock, productClientMock, lomsCliMock)
+	s := NewService(repoMock, productClientMock, lomsCliMock, tracer)
 
 	return repoMock, productClientMock, lomsCliMock, s
+}
+
+func newTestTracer() (*trace.TracerProvider, *tracetest.SpanRecorder) {
+	spanRecorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(
+		trace.WithSpanProcessor(spanRecorder),
+	)
+
+	return tp, spanRecorder
 }
 
 func TestGetProduct(t *testing.T) {

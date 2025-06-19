@@ -6,9 +6,9 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/gojuno/minimock/v3 v3.4.0
 	github.com/gorilla/mux v1.8.1
-	github.com/kdaadk/route256/pkg/logger v0.0.0
-	github.com/kdaadk/route256/pkg/tracing v0.0.0
+	github.com/kdaadk/route256 v0.0.0-20250610155345-f99671423c45
 	github.com/stretchr/testify v1.10.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.55.0
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/sdk v1.34.0
 	go.opentelemetry.io/otel/trace v1.34.0
@@ -17,11 +17,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
-)
-
-replace (
-	github.com/kdaadk/route256/pkg/logger => ../pkg/logger
-	github.com/kdaadk/route256/pkg/tracing => ../pkg/tracing
 )
 
 require (

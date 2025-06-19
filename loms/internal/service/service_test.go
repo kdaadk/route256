@@ -8,7 +8,6 @@ import (
 	"github.com/kdaadk/route256/pkg/tracing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 	"math/rand"
 	"os"
@@ -33,6 +32,8 @@ func TestServiceIntegration(t *testing.T) {
 	suite.Run(t, new(ServiceIntegrationTestSuite))
 }
 
+var serviceName = "loms-service-test"
+
 func (s *ServiceIntegrationTestSuite) SetupSuite() {
 	var err error
 	s.db, err = setupTestDB()
@@ -41,12 +42,12 @@ func (s *ServiceIntegrationTestSuite) SetupSuite() {
 	}
 
 	//tracing
-	tp, err := initTracer()
-	defer tracing.ShutdownTracer(tp)
+	tp, err := tracing.InitTracer("jaeger:4317", serviceName, tracing.GRPCTransport)
 	if err != nil {
-		myLogger.ErrorContext(context.Background(), "Failed to create tracer", zap.Error(err))
+		myLogger.ErrorContext(context.Background(), "Failed to initialize tracer ", zap.Error(err))
 		return
 	}
+	defer tracing.ShutdownTracer(tp)
 
 	s.ctx = context.Background()
 	txManager := repository.NewTxManager(s.db)
@@ -57,17 +58,6 @@ func (s *ServiceIntegrationTestSuite) SetupSuite() {
 		s.FailNow("Failed to create kafka producer", err)
 	}
 	s.service = NewService(ordersRepo, stocksRepo, txManager, kafkaCli)
-}
-
-func initTracer() (*sdktrace.TracerProvider, error) {
-	host := "localhost"
-	port := "5432"
-	serviceName := "loms"
-	tp, err := tracing.InitTracer(host+":"+port, serviceName, tracing.GRPCTransport)
-	if err != nil {
-		return nil, err
-	}
-	return tp, nil
 }
 
 func (s *ServiceIntegrationTestSuite) TearDownTest() {

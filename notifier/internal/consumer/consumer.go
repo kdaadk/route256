@@ -1,8 +1,10 @@
 package consumer
 
 import (
+	"context"
+	"fmt"
 	"github.com/IBM/sarama"
-	"log/slog"
+	myLogger "github.com/kdaadk/route256/pkg/logger"
 )
 
 type Handler struct {
@@ -26,8 +28,8 @@ func (h *Handler) Cleanup(session sarama.ConsumerGroupSession) error {
 
 func (h *Handler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
-		slog.Info("Message received: Topic=%s, Partition=%d, Offset=%d, Key=%s, Value=%s",
-			message.Topic, message.Partition, message.Offset, string(message.Key), string(message.Value))
+		myLogger.InfoContext(context.Background(), fmt.Sprintf("Message received: Topic=%s, Partition=%d, Offset=%d, Key=%s, Value=%s",
+			message.Topic, message.Partition, message.Offset, string(message.Key), string(message.Value)))
 
 		session.MarkMessage(message, "")
 		session.Commit()

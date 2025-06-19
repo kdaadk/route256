@@ -5,9 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
 	"net/http"
 	"route256/cart/internal/model"
+	"route256/cart/internal/mw"
 	"time"
 )
 
@@ -20,12 +24,18 @@ type Client struct {
 	baseURL     string
 	client      *http.Client
 	rateLimiter *rate.Limiter
+	tracer      trace.Tracer
 }
 
-func NewClient(baseUrl string) (*Client, error) {
+func NewClient(baseUrl string, tp trace.TracerProvider) (*Client, error) {
 	return &Client{
-		baseURL:     baseUrl,
-		client:      &http.Client{},
+		baseURL: baseUrl,
+		client: &http.Client{
+			Transport: mw.NewTracingTransport(
+				http.DefaultTransport,
+				tp.Tracer("product-client"),
+			),
+		},
 		rateLimiter: rate.NewLimiter(rate.Every(100*time.Millisecond), 10),
 	}, nil
 }
@@ -42,6 +52,9 @@ func (c *Client) GetProduct(ctx context.Context, productId int64) (*model.Produc
 
 	url := fmt.Sprintf("%s/product/%d", c.baseURL, productId)
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, bytes.NewBuffer([]byte{}))
+
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error calling product service: %w", err)

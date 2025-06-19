@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
 	"route256/cart/internal/model"
@@ -25,11 +26,11 @@ type cartService interface {
 
 type Handler struct {
 	service cartService
+	Tracer  trace.Tracer
 }
 
-func NewHandler(service cartService) *Handler {
-	return &Handler{
-		service: service}
+func NewHandler(service cartService, tracer trace.Tracer) *Handler {
+	return &Handler{service: service, Tracer: tracer}
 }
 
 var (
@@ -58,6 +59,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 	// cart/checkout - приобретаем товары через Checkout
 	r.HandleFunc(CheckoutRoute, h.CheckoutHandler).Methods("POST")
+
+	// healthcheck
+	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 }
 
 func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) {

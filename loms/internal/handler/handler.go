@@ -15,16 +15,17 @@ var _ proto.LomsServiceServer = (*Handler)(nil)
 
 type Handler struct {
 	Service *service.Service
-	Tracer  trace.Tracer
+	tracer  trace.Tracer
 	proto.UnimplementedLomsServiceServer
 }
 
-func NewHandler(service *service.Service) *Handler {
-	return &Handler{Service: service}
+func NewHandler(service *service.Service, tracer trace.Tracer) *Handler {
+	return &Handler{Service: service, tracer: tracer}
 }
 
 func (h *Handler) CreateOrder(ctx context.Context, req *proto.CreateOrderRequest) (*proto.CreateOrderResponse, error) {
-	h.Tracer.Start(ctx, "create_order")
+	ctx, span := h.tracer.Start(ctx, "CreateOrder")
+	defer span.End()
 	myLogger.InfoContext(ctx, "create_order")
 
 	orderId, err := h.Service.CreateOrder(req)
@@ -37,6 +38,9 @@ func (h *Handler) CreateOrder(ctx context.Context, req *proto.CreateOrderRequest
 }
 
 func (h *Handler) GetOrderById(ctx context.Context, req *proto.GetByIdRequest) (*proto.GetByIdResponse, error) {
+	ctx, span := h.tracer.Start(ctx, "GetOrderById")
+	defer span.End()
+
 	order, err := h.Service.GetById(req.OrderId)
 	if order == nil || err != nil {
 		return nil, errors.New("order not found")
@@ -52,6 +56,9 @@ func (h *Handler) GetOrderById(ctx context.Context, req *proto.GetByIdRequest) (
 }
 
 func (h *Handler) PayOrder(ctx context.Context, req *proto.PayOrderRequest) (*emptypb.Empty, error) {
+	ctx, span := h.tracer.Start(ctx, "PayOrder")
+	defer span.End()
+
 	err := h.Service.PayOrder(req)
 	if err != nil {
 		return nil, err
@@ -61,6 +68,9 @@ func (h *Handler) PayOrder(ctx context.Context, req *proto.PayOrderRequest) (*em
 }
 
 func (h *Handler) CancelOrder(ctx context.Context, req *proto.CancelOrderRequest) (*emptypb.Empty, error) {
+	ctx, span := h.tracer.Start(ctx, "CancelOrder")
+	defer span.End()
+
 	err := h.Service.CancelOrder(req)
 	if err != nil {
 		return nil, err
@@ -70,6 +80,9 @@ func (h *Handler) CancelOrder(ctx context.Context, req *proto.CancelOrderRequest
 }
 
 func (h *Handler) GetStockInfo(ctx context.Context, req *proto.GetStockInfoRequest) (*proto.GetStockInfoResponse, error) {
+	ctx, span := h.tracer.Start(ctx, "GetStockInfo")
+	defer span.End()
+
 	stocks, err := h.Service.GetStockInfos(req)
 	if err != nil {
 		return nil, err

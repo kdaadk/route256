@@ -1,9 +1,10 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"github.com/IBM/sarama"
-	"log/slog"
+	myLogger "github.com/kdaadk/route256/pkg/logger"
 	"net"
 	"os"
 	"time"
@@ -29,7 +30,7 @@ func NewKafkaProducer(topic string) (*KafkaProducer, error) {
 		return nil, fmt.Errorf("failed to create producer: %w (broker: %s)", err, broker)
 	}
 
-	slog.Info("Connected to Kafka broker at %s", broker)
+	myLogger.InfoContext(context.Background(), fmt.Sprintf("Connected to Kafka broker at %v", broker))
 	return &KafkaProducer{producer: producer, topic: topic}, nil
 }
 
@@ -46,7 +47,7 @@ func (kp *KafkaProducer) SendMessage(key, value string) error {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 
-	slog.Info("Produced message to %s[%d]@%d", kp.topic, partition, offset)
+	myLogger.InfoContext(context.Background(), fmt.Sprintf("Produced message to %s[%d]@%d", kp.topic, partition, offset))
 	return nil
 }
 

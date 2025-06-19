@@ -6,21 +6,17 @@ require (
 	github.com/IBM/sarama v1.45.2
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/jackc/pgx/v5 v5.7.5
-	github.com/kdaadk/route256/pkg/logger v0.0.0
-	github.com/kdaadk/route256/pkg/tracing v0.0.0
+	github.com/kdaadk/route256 v0.0.0-20250610155345-f99671423c45
 	github.com/stretchr/testify v1.10.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.55.0
 	go.opentelemetry.io/otel v1.35.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.30.0
 	go.opentelemetry.io/otel/sdk v1.34.0
 	go.opentelemetry.io/otel/trace v1.35.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
-)
-
-replace (
-	github.com/kdaadk/route256/pkg/logger => ../pkg/logger
-	github.com/kdaadk/route256/pkg/tracing => ../pkg/tracing
 )
 
 require (
@@ -52,7 +48,6 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.30.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.30.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.30.0 // indirect
 	go.opentelemetry.io/otel/metric v1.35.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect

@@ -2,8 +2,10 @@ go 1.23.2
 
 use (
 	./cart
-	loms
-	notifier
+	./loms
+	./notifier
+	./product
 	./pkg/tracing
 	./pkg/logger
+	./pkg/metrics
 )

@@ -9,37 +9,8 @@ x-postgres-common: &postgres-common
     interval: 10s
     timeout: 5s
     retries: 5
-  networks:
-    - kafka-net
 
 services:
-  cart:
-    build:
-      context: ./cart
-      dockerfile: Dockerfile
-    working_dir: /app
-    command: ["./cartbuild"]
-    depends_on:
-      - loms
-    networks:
-      - kafka-net
-
-  loms:
-    build:
-      context: .
-      dockerfile: loms/Dockerfile
-    working_dir: /app
-    command: ["./lomsbuild"]
-    depends_on:
-      - postgres_primary
-      - postgres_replica
-      - kafka0
-    environment:
-      DB_MASTER_URL: "postgres://loms:loms@postgres_primary:5432/loms?sslmode=disable"
-      DB_REPLICA_URL: "postgres://loms:loms@postgres_replica:5432/loms?sslmode=disable"
-    networks:
-      - kafka-net
-
   postgres_primary:
     <<: *postgres-common
     ports:
@@ -90,9 +61,6 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka0:29092
       DYNAMIC_CONFIG_ENABLED: "true"
-    networks:
-      - kafka-net
-
   kafka0:
     container_name: kafka
     image: confluentinc/cp-kafka:7.7.1.arm64
@@ -112,17 +80,16 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka0:29092"]
-      interval: 5s
+      interval: 1s
       timeout: 10s
       retries: 10
-    networks:
-      - kafka-net
 
   kafka-init-topics:
     container_name: init-topics
     image: confluentinc/cp-kafka:7.5.4.arm64
     depends_on:
-      - kafka0
+      kafka0:
+        condition: service_healthy
     command:
       - "bash"
       - "-c"
@@ -134,8 +101,68 @@ services:
           --replication-factor 1 \
           --if-not-exists \
           --bootstrap-server kafka0:29092
-    networks:
-      - kafka-net
+
+  loms:
+    build:
+      context: ./loms
+      dockerfile: Dockerfile
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        echo "Waiting for databases to be ready..."
+        while ! nc -z postgres_primary 5432; do sleep 1; done
+        while ! nc -z postgres_replica 5432; do sleep 1; done
+        
+        echo "Running migrations..."
+        bin/goose -dir migrations postgres "postgresql://loms:loms@postgres_primary:5432/loms?sslmode=disable" up
+        
+        echo "Starting application..."
+        exec ./lomsbuild
+    depends_on:
+      postgres_primary:
+        condition: service_healthy
+      postgres_replica:
+        condition: service_healthy
+      kafka0:
+        condition: service_healthy
+    environment:
+      DB_MASTER_URL: "postgres://loms:loms@postgres_primary:5432/loms?sslmode=disable"
+      DB_REPLICA_URL: "postgres://loms:loms@postgres_replica:5432/loms?sslmode=disable"
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 50051 || exit 1" ]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  product:
+    build:
+      context: ./product
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: [ "./productbuild" ]
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8081/health || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  cart:
+    build:
+      context: ./cart
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: [ "./cartbuild" ]
+    depends_on:
+      loms:
+        condition: service_healthy
+      product:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
 
   notifier:
     build: ./notifier
@@ -152,8 +179,6 @@ services:
         condition: service_completed_successfully
     deploy:
       replicas: 3
-    networks:
-      - kafka-net
 
   prometheus:
     image: prom/prometheus:latest
@@ -189,6 +214,3 @@ volumes:
   prometheus_data:
   grafana_data:
 
-networks:
-  kafka-net:
-    driver: bridge

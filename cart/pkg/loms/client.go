@@ -1,6 +1,7 @@
 package loms
 
 import (
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"route256/cart/vendor-proto/route256/loms"
 
@@ -22,22 +23,23 @@ func NewClient(host string) (*Client, error) {
 
 func (c *Client) Close() error {
 	if c.conn != nil {
-		err := c.conn.Close()
-		if err != nil {
-			return err
-		}
+		return c.conn.Close()
 	}
 	return nil
 }
 
-func (c *Client) Run() error {
-	conn, err := grpc.Dial(c.host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func (c *Client) Connect() error {
+	conn, err := grpc.Dial(
+		c.host,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	)
 	if err != nil {
 		return err
 	}
 
 	c.conn = conn
 	c.client = proto.NewLomsServiceClient(conn)
-
 	return nil
 }

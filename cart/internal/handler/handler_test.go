@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"net/http"
 	"net/http/httptest"
 	proto "route256/cart/vendor-proto/route256/loms"
@@ -19,12 +22,26 @@ import (
 )
 
 func setupMocks(mc *minimock.Controller) (*mocks.CartRepoMock, *mocks.ProductClientMock, *mocks.LomsClientMock, *Handler) {
+	tp, _ := newTestTracer()
+	otel.SetTracerProvider(tp)
+	tracer := tp.Tracer("cart-service-test")
+
 	repo := mocks.NewCartRepoMock(mc)
 	productCli := mocks.NewProductClientMock(mc)
 	lomsCli := mocks.NewLomsClientMock(mc)
-	s := service.NewService(repo, productCli, lomsCli)
-	h := NewHandler(s)
+
+	s := service.NewService(repo, productCli, lomsCli, tracer)
+	h := NewHandler(s, tracer)
 	return repo, productCli, lomsCli, h
+}
+
+func newTestTracer() (*trace.TracerProvider, *tracetest.SpanRecorder) {
+	spanRecorder := tracetest.NewSpanRecorder()
+	tp := trace.NewTracerProvider(
+		trace.WithSpanProcessor(spanRecorder),
+	)
+
+	return tp, spanRecorder
 }
 
 func newProduct(skuId int64) *model.Product {

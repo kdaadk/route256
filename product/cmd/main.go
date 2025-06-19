@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"github.com/gorilla/mux"
 	myLogger "github.com/kdaadk/route256/pkg/logger"
 	"github.com/kdaadk/route256/pkg/tracing"
 	"go.uber.org/zap"
@@ -11,17 +11,28 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"route256/cart/internal/handler"
-	"route256/cart/internal/mw"
-	"route256/cart/internal/repository"
-	"route256/cart/internal/service"
-	"route256/cart/pkg/loms"
-	"route256/cart/pkg/product"
+	"route256/product/internal/mw"
+	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/gorilla/mux"
 )
 
-var serviceName = "cart-service"
+type Product struct {
+	SkuId int64  `json:"sku_id"`
+	Name  string `json:"name"`
+	Count uint16 `json:"count"`
+	Price uint32 `json:"price"`
+}
+
+var (
+	storage = map[int64]Product{
+		1076963: {SkuId: 1076963, Name: "Item #1076963", Count: 6, Price: 100},
+		1148162: {SkuId: 1148162, Name: "Item #1148162", Count: 16, Price: 200},
+	}
+	serviceName = "product-service"
+)
 
 func main() {
 	// logging
@@ -44,36 +55,17 @@ func main() {
 	}
 	defer tracing.ShutdownTracer(tp)
 
-	tracer := tp.Tracer(serviceName)
-
-	// product client
-	productCli, err := product.NewClient("http://product:8081", tp)
-	if err != nil {
-		myLogger.ErrorContext(context.Background(), "Failed to create product client", zap.Error(err))
-		return
-	}
-	myLogger.InfoContext(context.Background(), "🚀 Server productCli running on :8081")
-
-	// loms client
-	lomsCli, _ := loms.NewClient("loms:50051")
-	err = lomsCli.Connect()
-	if err != nil {
-		myLogger.ErrorContext(context.Background(), "Failed to connect loms client", zap.Error(err))
-		return
-	}
-	myLogger.InfoContext(context.Background(), "🚀 Server lomsCli running on :50051")
-
 	// server
-	cartRepo := repository.NewCartRepository()
-	serv := service.NewService(cartRepo, productCli, lomsCli, tracer)
-	hand := handler.NewHandler(serv, tracer)
-	router := mux.NewRouter()
-	hand.RegisterRoutes(router)
+	r := mux.NewRouter()
+	r.HandleFunc("/product/{id}", handleGetProduct).Methods("GET")
+	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
-	wrappedRouter := mw.TracingMiddleware(router)
+	wrappedRouter := mw.TracingMiddleware(r)
 
 	server := &http.Server{
-		Addr:         ":8082",
+		Addr:         "0.0.0.0:8081",
 		Handler:      wrappedRouter,
 		ReadTimeout:  2 * time.Second,
 		WriteTimeout: 2 * time.Second,
@@ -82,12 +74,11 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
-	myLogger.InfoContext(context.Background(), "🟢 Attempting to start HTTP server on :8082")
 
 	go func() {
-		myLogger.InfoContext(context.Background(), "🚀 Server running on :8082")
+		myLogger.InfoContext(context.Background(), "🚀 Server running on :8081")
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			myLogger.ErrorContext(context.Background(), "Server failed on :8082", zap.Error(err))
+			myLogger.ErrorContext(context.Background(), "Server failed on :8081", zap.Error(err))
 		}
 	}()
 
@@ -101,5 +92,31 @@ func main() {
 		myLogger.ErrorContext(ctx, "Server shutdown failed", zap.Error(err))
 	} else {
 		myLogger.InfoContext(context.Background(), "Server exited gracefully")
+	}
+}
+
+func handleGetProduct(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr, ok := vars["id"]
+	if !ok {
+		http.Error(w, "missing product Id", http.StatusBadRequest)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid product Id", http.StatusBadRequest)
+		return
+	}
+
+	product, ok := storage[id]
+	if !ok {
+		http.Error(w, "invalid sku", http.StatusPreconditionFailed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(product); err != nil {
+		http.Error(w, "failed to encode product", http.StatusInternalServerError)
 	}
 }
