@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	myLogger "github.com/kdaadk/route256/pkg/logger"
+	"github.com/kdaadk/route256/pkg/metrics"
 	"github.com/kdaadk/route256/pkg/tracing"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
@@ -13,7 +14,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"route256/loms/internal/handler"
@@ -95,6 +98,17 @@ func main() {
 		myLogger.InfoContext(context.Background(), "Starting gRPC server")
 		if err = grpcServer.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			myLogger.ErrorContext(context.Background(), "Failed to start gRPC server", zap.Error(err))
+		}
+	}()
+
+	// metrics
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", metrics.MetricsHandler())
+
+	go func() {
+		slog.Info("Metrics server listening", "address", ":9091")
+		if err := http.ListenAndServe(":9091", metricsMux); err != nil {
+			slog.Error("Failed to serve metrics", "error", err)
 		}
 	}()
 

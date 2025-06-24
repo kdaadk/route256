@@ -1,12 +1,18 @@
 package mw
 
 import (
+	myLogger "github.com/kdaadk/route256/pkg/logger"
+	"github.com/kdaadk/route256/pkg/metrics"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+	"log/slog"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 type TracingTransport struct {
@@ -52,12 +58,69 @@ func NewTracingTransport(transport http.RoundTripper, tracer trace.Tracer) *Trac
 
 func TracingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
-
-		tracer := otel.Tracer("cart-service")
-		ctx, span := tracer.Start(ctx, r.URL.Path)
+		// Start timer and tracing
+		start := time.Now()
+		ctx, span := otel.Tracer("").Start(r.Context(), r.URL.Path)
 		defer span.End()
 
-		next.ServeHTTP(w, r.WithContext(ctx))
+		// Get trace context
+		traceID := trace.SpanContextFromContext(ctx).TraceID().String()
+		spanID := trace.SpanContextFromContext(ctx).SpanID().String()
+
+		// Create response recorder
+		recorder := &statusRecorder{
+			ResponseWriter: w,
+			status:         http.StatusOK,
+		}
+
+		// Deferred logging and metrics
+		defer func() {
+			duration := time.Since(start).Seconds()
+			statusCode := strconv.Itoa(recorder.status)
+
+			myLogger.InfoContext(ctx, "write metrics", zap.Float64("duration", duration), zap.String("status_code", statusCode))
+			// Record metrics
+			metrics.RequestDuration.WithLabelValues(r.URL.Path, statusCode).Observe(duration)
+			metrics.TotalRequests.WithLabelValues(r.URL.Path, statusCode).Inc()
+
+			// Prepare log fields
+			logFields := []any{
+				"service", "cart",
+				"time", time.Now().Format(time.RFC3339),
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", recorder.status,
+				"duration", duration,
+				"trace_id", traceID,
+				"span_id", spanID,
+			}
+
+			// Add error message if present
+			if recorder.errMessage != "" {
+				logFields = append(logFields, "error", recorder.errMessage)
+			}
+
+			// Log based on status code
+			if recorder.status >= 400 {
+				slog.Error("HTTP request failed", logFields...)
+			} else {
+				slog.Info("HTTP request succeeded", logFields...)
+			}
+		}()
+
+		// Call the next handler with the new context
+		next.ServeHTTP(recorder, r.WithContext(ctx))
 	})
+}
+
+// statusRecorder remains the same as your original implementation
+type statusRecorder struct {
+	http.ResponseWriter
+	status     int
+	errMessage string
+}
+
+func (r *statusRecorder) WriteHeader(statusCode int) {
+	r.status = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
 }

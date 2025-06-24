@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	myLogger "github.com/kdaadk/route256/pkg/logger"
+	"github.com/kdaadk/route256/pkg/metrics"
 	"github.com/kdaadk/route256/pkg/tracing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -91,6 +92,17 @@ func main() {
 		}
 	}()
 
+	// metrics
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", metrics.MetricsHandler())
+	go func() {
+		myLogger.InfoContext(context.Background(), "Metrics server listening 9092")
+		if err := http.ListenAndServe(":9093", metricsMux); err != nil {
+			myLogger.ErrorContext(context.Background(), "Failed to serve metrics", zap.Error(err))
+		}
+	}()
+
+	// waiting for gracefully shutdown
 	<-quit
 	myLogger.InfoContext(context.Background(), "Shutting down server...")
 

@@ -64,6 +64,9 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+
+	// metrics
+	//r.Handle("/metrics", promhttp.Handler())
 }
 
 func (h *Handler) DeleteFromCartHandler(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +129,16 @@ func (h *Handler) GetAllFromCartHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 }
+
+//var (
+//	requestCounter = promauto.NewCounterVec(
+//		prometheus.CounterOpts{
+//			Namespace: "cart-service",
+//			Name:      "add-to-cart_counter",
+//			Help:      "Total request to handler add-to-cart",
+//		},
+//		[]string{"handler"})
+//)
 
 func (h *Handler) AddToCartHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
